@@ -1,0 +1,75 @@
+{
+  "theme": "Light",
+  "archetype": "Archetype 4 (Swiss & High-Contrast)",
+  "typography": {
+    "heading_font": "Outfit",
+    "body_font": "IBM Plex Sans",
+    "rules": {
+      "h1": "text-4xl tracking-tight font-semibold",
+      "h2": "text-2xl tracking-tight font-medium",
+      "h3": "text-xl tracking-tight font-medium",
+      "body": "text-base leading-relaxed",
+      "labels": "text-xs uppercase tracking-[0.2em] font-medium"
+    }
+  },
+  "colors": {
+    "background": "#FAFAFA",
+    "surface": "#FFFFFF",
+    "primary": "#002FA7",
+    "primary_hover": "#001D66",
+    "text_primary": "#09090B",
+    "text_secondary": "#52525B",
+    "border": "#E4E4E7",
+    "success": "#10B981",
+    "warning": "#F59E0B",
+    "danger": "#EF4444"
+  },
+  "layout": {
+    "navigation": {
+      "type": "Horizontal top-center navbar",
+      "sidebar": false,
+      "structure": "Logo left, Nav Links Center, Profile/Actions Right",
+      "surface_strategy": "Crystal Glass - backdrop-blur-xl bg-white/70 with 1px delicate inner stroke (border-b border-black/5)"
+    },
+    "page_container": "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12",
+    "spacing_strategy": "Dense and compact for data grids, but generous spacing (p-8) for empty states or standalone cards."
+  },
+  "components": {
+    "buttons": "Flat, sharp edges (rounded-none or rounded-sm). High contrast (bg-[#002FA7] text-white).",
+    "cards": "bg-white border border-[#E4E4E7] shadow-none rounded-none p-6. Hover state: slight lift (-translate-y-1) and shadow-sm.",
+    "tables": "Shadcn Table. Use crisp borders (border-collapse, border-b border-[#E4E4E7]). Compact padding for data density. Explicit hover states (hover:bg-[#F4F4F5]).",
+    "forms": "Shadcn Form, Input, Select. Left aligned labels. Sharp edges on inputs."
+  },
+  "motion": {
+    "hover": "transition-all duration-200 ease-in-out",
+    "active": "scale-[0.98]",
+    "entrance": "Staggered fade-in for table rows or grid items."
+  },
+  "icons": {
+    "library": "lucide-react",
+    "style": "stroke-[1.5] for a precise, technical feel."
+  },
+  "accessibility": {
+    "contrast": "Ensure minimum 4.5:1 ratio for text. Hover state color must be explicitly set (e.g., hover:bg-[#F4F4F5] hover:text-[#09090B]).",
+    "testing": "All interactive elements MUST have data-testid attributes (e.g., data-testid='login-submit-button')."
+  },
+  "image_urls": {
+    "login_background": {
+      "url": "https://images.unsplash.com/photo-1758611228434-7b5b697abd0a?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1Nzh8MHwxfHNlYXJjaHwyfHxtb2Rlcm4lMjBzY2hvb2wlMjBidWlsZGluZyUyMGV4dGVyaW9yfGVufDB8fHx8MTc4MTA5MTc5Nnww&ixlib=rb-4.1.0&q=85",
+      "description": "Modern building exterior at twilight - use for auth page background with gradient overlay"
+    },
+    "school_placeholder": {
+      "url": "https://images.pexels.com/photos/17144608/pexels-photo-17144608.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "description": "Exterior view of modern educational building - use as placeholder for school images in Super Admin dashboard"
+    }
+  },
+  "instructions_to_main_agent": [
+    "Implement the UI using React, Tailwind CSS, and Shadcn UI.",
+    "Ensure the Super Admin view includes strictly: Create School, School List, and Create Admin.",
+    "Ensure School Admin view contains: Students, Staff, Attendance, Classes/Sections, Fees, Transport, Frontdesk.",
+    "Follow the top-center horizontal navigation strictly. DO NOT implement a sidebar layout.",
+    "Use 'Outfit' for all headings and 'IBM Plex Sans' for body text. Do not use generic fonts like Inter or Roboto.",
+    "Apply data-testid to all actionable elements for automated testing.",
+    "Adhere to the Archetype 4 (Swiss & High-Contrast) theme: use sharp edges (rounded-none), high contrast, and clean grids. Avoid gradient overloads."
+  ]
+}

@@ -1,0 +1,106 @@
+from rest_framework import generics, status
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from django.db.models import Count
+from .models import Vehicle, Route, Stop, StudentTransport, TransportAttendance, VehiclePart, VehicleMake, VehicleModel
+from .serializers import (
+    VehicleSerializer, RouteSerializer, StopSerializer, StudentTransportSerializer,
+    TransportAttendanceSerializer, VehiclePartSerializer, VehicleMakeSerializer, VehicleModelSerializer
+)
+from utils.permissions import IsSchoolAdmin, IsSchoolStaff
+
+
+class VehicleMakeListCreateView(generics.ListCreateAPIView):
+    serializer_class = VehicleMakeSerializer
+    permission_classes = [IsSchoolAdmin]
+    queryset = VehicleMake.objects.all()
+
+
+class VehicleModelListCreateView(generics.ListCreateAPIView):
+    serializer_class = VehicleModelSerializer
+    permission_classes = [IsSchoolAdmin]
+    queryset = VehicleModel.objects.all()
+
+
+class VehicleListCreateView(generics.ListCreateAPIView):
+    serializer_class = VehicleSerializer
+    permission_classes = [IsSchoolAdmin]
+    queryset = Vehicle.objects.all()
+
+
+class VehicleDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = VehicleSerializer
+    permission_classes = [IsSchoolAdmin]
+    queryset = Vehicle.objects.all()
+
+
+class RouteListCreateView(generics.ListCreateAPIView):
+    serializer_class = RouteSerializer
+    permission_classes = [IsSchoolAdmin]
+    queryset = Route.objects.prefetch_related('stops').filter(is_active=True)
+
+
+class StopListCreateView(generics.ListCreateAPIView):
+    serializer_class = StopSerializer
+    permission_classes = [IsSchoolAdmin]
+
+    def get_queryset(self):
+        qs = Stop.objects.select_related('route')
+        if self.request.query_params.get('route_id'):
+            qs = qs.filter(route_id=self.request.query_params['route_id'])
+        return qs
+
+
+class StudentTransportListCreateView(generics.ListCreateAPIView):
+    serializer_class = StudentTransportSerializer
+    permission_classes = [IsSchoolStaff]
+
+    def get_queryset(self):
+        qs = StudentTransport.objects.select_related('route', 'stop')
+        params = self.request.query_params
+        if params.get('route_id'):
+            qs = qs.filter(route_id=params['route_id'])
+        if params.get('status'):
+            qs = qs.filter(status=params['status'])
+        if params.get('session_year'):
+            qs = qs.filter(session_year=params['session_year'])
+        return qs
+
+
+class TransportAttendanceView(generics.ListCreateAPIView):
+    serializer_class = TransportAttendanceSerializer
+    permission_classes = [IsSchoolStaff]
+
+    def get_queryset(self):
+        qs = TransportAttendance.objects.select_related('route')
+        params = self.request.query_params
+        if params.get('date'):
+            qs = qs.filter(date=params['date'])
+        if params.get('route_id'):
+            qs = qs.filter(route_id=params['route_id'])
+        return qs
+
+
+class BuswiseStudentCountView(APIView):
+    permission_classes = [IsSchoolStaff]
+
+    def get(self, request):
+        session_year = request.query_params.get('session_year', '')
+        data = (
+            StudentTransport.objects
+            .filter(status='active', session_year=session_year)
+            .values('route__vehicle__bus_no', 'route__name')
+            .annotate(student_count=Count('id'))
+        )
+        return Response(list(data))
+
+
+class VehiclePartListCreateView(generics.ListCreateAPIView):
+    serializer_class = VehiclePartSerializer
+    permission_classes = [IsSchoolAdmin]
+
+    def get_queryset(self):
+        qs = VehiclePart.objects.select_related('vehicle')
+        if self.request.query_params.get('vehicle_id'):
+            qs = qs.filter(vehicle_id=self.request.query_params['vehicle_id'])
+        return qs

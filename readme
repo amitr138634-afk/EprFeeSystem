@@ -1,0 +1,288 @@
+Build a Multi-Tenant School ERP System using Python, Django, Django REST Framework (DRF), and PostgreSQL.
+
+Central Database Tables:
+
+- schools
+- super_admins
+
+When the Super Admin creates a new school, the system should automatically create a dedicated PostgreSQL database for that school and initialize the following tables:
+
+- users
+- roles
+- permissions
+- user_roles
+- role_permissions
+
+Super Admin Features:
+
+- Create School
+- Manage School
+- Create School Admin
+- Activate/Deactivate School
+
+School Admin Features:
+
+- Login using assigned credentials
+- Access only their own school's data
+
+=================================================
+ADMIN PANEL
+
+Menu 1 - Students
+
+- Student List
+- Student Strength (Class Wise)
+
+Menu 2 - Staff
+
+- Staff List
+- Department Master
+- Designation Master
+
+Menu 3 - Attendance
+
+Student Attendance
+
+- Student Attendance
+- Attendance Register
+- Absent Log
+- Class Wise Attendance Status
+- Date Wise Summary
+
+Staff Attendance
+
+- Manage Shift
+- Staff Attendance
+- Monthly Staff Attendance Report
+- Staff Holiday List
+- Staff Leave Request
+- Leave Balance Report
+- Date Wise Staff Summary
+
+Menu 4 - Timetable
+
+- Add / Update Timetable
+- View Teacher Timetable
+- View Day Wise Timetable
+- Class Wise Timetable
+- Timetable Workload
+- Teacher Substitute Report
+- Month Wise Substitute Report
+
+Menu 5 - CCE
+
+Assign Subject & Test
+
+- Assign Subject & Test
+- Marks Feeding
+- Calculation Master
+- Remark Master
+- Signature Master
+- Generate Report Card
+
+Subject Allocation
+
+- Assign Subject
+- Add Subject (Student)
+- Multiple Subject Mapping
+
+=================================================
+FEES PANEL
+
+Menu 1 - Fee Management
+
+Fee Setup
+
+- Define Fee Heads
+- Define Fee Amounts
+- Define Teacher Extra Heads
+- Configure Discount Heads
+- Additional Fee Master
+- Deposit Fee Management
+
+Fee Collection
+
+- Pay Fee
+- Pay Extra Fee
+- Automatic Late Fine Calculation
+- Reverify Payment
+- Fee Bill Generation
+
+Book Management
+
+- Book Set Creation
+- Book Inventory
+- Sell Book Set
+- Sales Receipt Generation
+
+Uniform Management
+
+- Uniform Item Master
+- Stock Management
+- Sell Uniform
+- Sales Tracking & Reporting
+
+History & Ledger
+
+- View Receipt History
+- Previous Late Fine Management
+- Student Fee Ledger
+
+Reports
+
+Fee Reports
+
+- Daily Collection Report
+- Monthly Collection Report
+- Class-wise Collection Report
+- Head-wise Collection Report
+- Payment Mode Report
+- Discount Report
+
+Fee Defaulter Reports
+
+- Class-wise Defaulter List
+- Date-wise Outstanding Report
+- Student-wise Due Report
+- Fine Pending Report
+
+Other Reports
+
+- Book Sales Report
+- Uniform Sales Report
+- Deposit Report
+- Cheque Status Report
+- Audit Log Report
+
+Menu 2 - Transport Management
+
+Transport Setup
+
+- Bus No. Master
+- Route Master
+- Stop Master
+- Promote Route / Stop
+- Vehicle Master
+- Vehicle Making / Company / Model
+- Vehicle Parts
+
+Students List
+
+- Students Using Transport
+- Students Not Using Transport
+
+Other Listing
+
+- Buswise List
+- Routewise List
+- Stopwise List
+- Buswise Student Count
+
+Transport Attendance
+
+- Attendance Transport Register
+
+Apply Transport
+
+- Apply Transport
+
+Menu 3 - Student Management
+
+New Admission
+
+- List New Admission
+- Dynamic Student Report
+- Change Adm. No.
+- CBSE Reg. Form
+
+Student Utility
+
+- Search Student
+- All Session Search Student
+- Admit Card
+- ID Card
+- Student Edit Master
+- Change Section Master
+- Update NSO
+- Create Sibling
+
+Promote / Demote
+
+- Promote Student
+- Demote Student
+
+Reports
+
+- Student Classwise Strength
+- Student List
+- NSO Student List
+- Cancelled Admissions
+- TC Issued
+- NSO / Visible Log
+- Commitment List
+- Age Calculator Report
+- Adm Category Report
+
+Menu 4 - Frontdesk
+
+Frontdesk Setup
+
+- Define Authorised Person
+- Follow Up Master
+- Halfday Approval Master
+
+Feedbacks
+
+- Add Feedback / Suggestions
+- View Feedbacks / Suggestions
+
+Visitors
+
+- Record Visits
+- List Visitors
+
+Short Leaves
+
+- Add Short Leaves
+- List Short Leaves
+
+New Admission Enquiry
+
+- Admission Query
+- Admission Dashboard
+- Report
+- Student Test Subjects
+- Enquiry Follow Up
+- Remark Master
+
+HRM
+
+- Add HRM
+- List HRM
+- Add Letter
+
+=================================================
+
+
+keep each services different as its school management  system, 
+
+keep frontend different and backend different
+
+admin/superadmin ke liye backend or frontend
+fee pannel backend and fontend  in 4 different  and we run to locally differently
+
+phone family need poppins 
+
+React se frontend
+django bankend api
+postgress sql same use for both backend sevices 
+
+make services like that so keep can seperate folder so we can enhance in future
+
+4 micro services
+
+attached scresnshot for admin pannel it should be like this similary for fee panel and menus and submenus according to above promts
+
+based on modules mentioned above and reasech on market then create based on your knowledge but keep
+
+keep readme file to run locally step by steps

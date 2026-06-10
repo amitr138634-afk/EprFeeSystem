@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { LogOut, ChevronDown, Building2 } from 'lucide-react'
 import clsx from 'clsx'
 import toast from 'react-hot-toast'
@@ -10,10 +10,21 @@ import { authApi } from '../../services/api'
  * Navigation per role
  * ──────────────────────────────────────────────────────────────────────── */
 const SUPER_ADMIN_NAV = [
-  { label: 'School List',    to: '/schools' },
-  { label: 'Create School',  to: '/schools/create' },
-  { label: 'Create Admin',   to: '/admins/create' },
-  { label: 'Admin List',     to: '/admins' },
+  { label: 'Dashboard', to: '/dashboard', end: true },
+  {
+    label: 'Schools',
+    items: [
+      { label: 'All Schools',    to: '/schools' },
+      { label: 'Add New School', to: '/schools/create' },
+    ],
+  },
+  {
+    label: 'School Admins',
+    items: [
+      { label: 'All Admins',    to: '/admins' },
+      { label: 'Add New Admin', to: '/admins/create' },
+    ],
+  },
 ]
 
 const SCHOOL_ADMIN_NAV = [
@@ -63,6 +74,15 @@ const SCHOOL_ADMIN_NAV = [
  * ──────────────────────────────────────────────────────────────────────── */
 function NavEntry({ entry }) {
   const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  // Close when clicking outside
+  useEffect(() => {
+    if (!open) return
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
 
   if (!entry.items) {
     return (
@@ -85,30 +105,33 @@ function NavEntry({ entry }) {
   }
 
   return (
-    <div className="relative" onMouseLeave={() => setOpen(false)}>
+    <div className="relative" ref={ref}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        onMouseEnter={() => setOpen(true)}
         data-testid={`nav-dropdown-${entry.label.toLowerCase()}`}
-        className="px-3 py-2 text-sm font-medium text-gray-700 rounded-md hover:bg-gray-100 inline-flex items-center gap-1"
+        className={clsx(
+          'px-3 py-2 text-sm font-medium rounded-md transition-colors inline-flex items-center gap-1',
+          open ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'
+        )}
       >
         {entry.label}
         <ChevronDown size={14} className={clsx('transition-transform', open && 'rotate-180')} />
       </button>
       {open && (
-        <div className="absolute left-1/2 -translate-x-1/2 top-full mt-1 min-w-[200px] bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-50">
+        <div className="absolute left-1/2 -translate-x-1/2 top-full mt-1.5 min-w-[200px] bg-white border border-gray-200 rounded-xl shadow-xl py-1.5 z-50">
           {entry.items.map((it) => (
             <NavLink
               key={it.to}
               to={it.to}
+              onClick={() => setOpen(false)}
               data-testid={`nav-sub-${it.label.toLowerCase().replace(/\s+/g, '-')}`}
               className={({ isActive }) =>
                 clsx(
-                  'block px-4 py-2 text-sm whitespace-nowrap',
+                  'flex items-center px-4 py-2.5 text-sm whitespace-nowrap transition-colors',
                   isActive
-                    ? 'bg-blue-50 text-blue-700 font-medium'
-                    : 'text-gray-700 hover:bg-gray-50'
+                    ? 'bg-blue-50 text-blue-700 font-semibold'
+                    : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600'
                 )
               }
             >

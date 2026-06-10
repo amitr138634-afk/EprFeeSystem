@@ -109,9 +109,25 @@ export default function CreateAdmin() {
             {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>}
           </div>
           <div>
-            <label className="form-label">Phone</label>
-            <input className="form-input" data-testid="phone-input" {...register('phone')} />
+            <label className="form-label">
+              Username <span className="text-red-500">*</span>
+              <span className="text-gray-400 font-normal text-xs ml-1">(used to login)</span>
+            </label>
+            <input
+              className="form-input"
+              placeholder="e.g. principal_demo"
+              {...register('username', {
+                required: 'Username is required',
+                pattern: { value: /^[a-zA-Z0-9_]+$/, message: 'Only letters, numbers, underscore' },
+              })}
+            />
+            {errors.username && <p className="text-red-500 text-xs mt-1">{errors.username.message}</p>}
           </div>
+        </div>
+
+        <div>
+          <label className="form-label">Phone</label>
+          <input className="form-input" data-testid="phone-input" {...register('phone')} />
         </div>
 
         <div>

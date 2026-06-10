@@ -78,8 +78,25 @@ export default function CreateSchool() {
               <input type="email" className="form-input" {...register('admin_email', { required: 'Required' })} />
             </div>
             <div>
-              <label className="form-label">Password <span className="text-red-500">*</span></label>
-              <input type="password" className="form-input" {...register('admin_password', { required: 'Required', minLength: { value: 8, message: 'Min 8 characters' } })} />
+              <label className="form-label">
+                Username <span className="text-red-500">*</span>
+                <span className="text-gray-400 font-normal text-xs ml-1">(login ID)</span>
+              </label>
+              <input
+                className="form-input"
+                placeholder="e.g. principal_demo"
+                {...register('admin_username', {
+                  required: 'Username is required',
+                  pattern: { value: /^[a-zA-Z0-9_]+$/, message: 'Only letters, numbers, underscore' },
+                })}
+              />
+              {errors.admin_username && <p className="text-red-500 text-xs mt-1">{errors.admin_username.message}</p>}
+            </div>
+            <div className="col-span-2 grid grid-cols-2 gap-4">
+              <div>
+                <label className="form-label">Password <span className="text-red-500">*</span></label>
+                <input type="password" className="form-input" {...register('admin_password', { required: 'Required', minLength: { value: 8, message: 'Min 8 characters' } })} />
+              </div>
             </div>
           </div>
         </div>

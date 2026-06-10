@@ -6,6 +6,7 @@ import Login from './pages/auth/Login'
 import Dashboard from './pages/Dashboard'
 
 // Super Admin pages
+import SuperAdminDashboard from './pages/superadmin/SuperAdminDashboard'
 import SchoolList from './pages/superadmin/SchoolList'
 import CreateSchool from './pages/superadmin/CreateSchool'
 import AdminList from './pages/superadmin/AdminList'
@@ -35,7 +36,7 @@ function PrivateRoute({ children, roles }) {
 
 function HomeRedirect() {
   const { user } = useAuthStore()
-  if (user?.role === 'super_admin') return <Navigate to="/schools" replace />
+  if (user?.role === 'super_admin') return <Navigate to="/dashboard" replace />
   return <Dashboard />
 }
 
@@ -54,6 +55,7 @@ export default function App() {
         <Route index element={<HomeRedirect />} />
 
         {/* ────────── Super Admin only ────────── */}
+        <Route path="dashboard"         element={<PrivateRoute roles={['super_admin']}><SuperAdminDashboard /></PrivateRoute>} />
         <Route path="schools"           element={<PrivateRoute roles={['super_admin']}><SchoolList /></PrivateRoute>} />
         <Route path="schools/create"    element={<PrivateRoute roles={['super_admin']}><CreateSchool /></PrivateRoute>} />
         <Route path="admins"            element={<PrivateRoute roles={['super_admin']}><AdminList /></PrivateRoute>} />

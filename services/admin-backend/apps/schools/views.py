@@ -26,6 +26,7 @@ class SchoolListCreateView(generics.ListCreateAPIView):
         admin_password = data.pop('admin_password')
         admin_first_name = data.pop('admin_first_name')
         admin_last_name = data.pop('admin_last_name')
+        admin_username = data.pop('admin_username', None)
 
         school_code = data['code'].lower().replace('-', '_')
         db_name = f'school_erp_{school_code}'
@@ -53,6 +54,7 @@ class SchoolListCreateView(generics.ListCreateAPIView):
                     password=admin_password,
                     first_name=admin_first_name,
                     last_name=admin_last_name,
+                    username=admin_username,
                     role='school_admin',
                     school_id=school.id,
                 )
@@ -79,16 +81,17 @@ class SchoolListCreateView(generics.ListCreateAPIView):
 
     @staticmethod
     def _create_postgres_database(db_name):
-        # Use autocommit because CREATE DATABASE cannot run inside a transaction
+        # CREATE DATABASE cannot run inside a transaction — use autocommit mode
         with connection.cursor() as cursor:
             cursor.execute("SELECT 1 FROM pg_database WHERE datname = %s", [db_name])
             if cursor.fetchone():
                 return
-            connection.set_autocommit(True)
-            try:
+        connection.set_autocommit(True)
+        try:
+            with connection.cursor() as cursor:
                 cursor.execute(f'CREATE DATABASE "{db_name}"')
-            finally:
-                connection.set_autocommit(False)
+        finally:
+            connection.set_autocommit(True)  # restore Django default (not False)
 
     @staticmethod
     def _migrate_tenant(school_id, db_name):

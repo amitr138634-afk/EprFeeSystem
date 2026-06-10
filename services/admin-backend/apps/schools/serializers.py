@@ -14,13 +14,14 @@ class SchoolCreateSerializer(serializers.ModelSerializer):
     admin_password = serializers.CharField(write_only=True, min_length=8)
     admin_first_name = serializers.CharField(write_only=True)
     admin_last_name = serializers.CharField(write_only=True)
+    admin_username = serializers.CharField(write_only=True, required=False, allow_blank=True)
 
     class Meta:
         model = School
         fields = [
             'name', 'code', 'email', 'phone', 'address', 'city', 'state', 'pincode',
             'subscription_start', 'subscription_end', 'max_students',
-            'admin_email', 'admin_password', 'admin_first_name', 'admin_last_name'
+            'admin_email', 'admin_password', 'admin_first_name', 'admin_last_name', 'admin_username'
         ]
 
 

@@ -5,3 +5,72 @@ credentials.json
 *.pem
 *.key
 .credentials
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+.eggs/
+build/
+dist/
+pip-wheel-metadata/
+venv/
+.venv/
+env/
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+.pyre/
+.pytype/
+*.sqlite3
+*.log
+
+# Django
+media/
+staticfiles/
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+/dist
+/build
+
+# macOS
+.DS_Store
+
+# Editors / IDEs
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*~
+
+# Logs
+logs/
+
+# Coverage
+.coverage
+coverage.xml
+
+# System files
+Thumbs.db
+
+# Ignore local env for frontends and backends
+services/admin-frontend/.env
+services/fee-frontend/.env
+services/admin-backend/.env
+services/fee-backend/.env
+
+# Ignore Python compiled files
+__pycache__/
+*.pyc
+*.pyo
+

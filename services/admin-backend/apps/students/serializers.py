@@ -2,18 +2,20 @@ from rest_framework import serializers
 from .models import Student, Class, Section
 
 
-class ClassSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Class
-        fields = '__all__'
-
-
 class SectionSerializer(serializers.ModelSerializer):
     class_name = serializers.CharField(source='class_ref.name', read_only=True)
 
     class Meta:
         model = Section
         fields = '__all__'
+
+
+class ClassSerializer(serializers.ModelSerializer):
+    sections = SectionSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Class
+        fields = ['id', 'name', 'order', 'sections']
 
 
 class StudentSerializer(serializers.ModelSerializer):

@@ -70,7 +70,15 @@ export const studentApi = {
   delete: (id) => api.delete(`/students/${id}/`),
   strength: () => api.get('/students/strength/'),
   classes: () => api.get('/students/classes/'),
+  createClass: (data) => api.post('/students/classes/', data),
+  updateClass: (id, data) => api.patch(`/students/classes/${id}/`, data),
+  deleteClass: (id) => api.delete(`/students/classes/${id}/`),
   sections: (params) => api.get('/students/sections/', { params }),
+  createSection: (data) => api.post('/students/sections/', data),
+  updateSection: (id, data) => api.patch(`/students/sections/${id}/`, data),
+  deleteSection: (id) => api.delete(`/students/sections/${id}/`),
+  bulkImport: (formData) => api.post('/students/import/', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  importTemplate: () => api.get('/students/import/template/', { responseType: 'blob' }),
 }
 
 export const staffApi = {

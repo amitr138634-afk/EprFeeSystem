@@ -28,6 +28,7 @@ const SUPER_ADMIN_NAV = [
 ]
 
 const SCHOOL_ADMIN_NAV = [
+  { label: 'Dashboard', to: '/', end: true },
   {
     label: 'Students',
     items: [

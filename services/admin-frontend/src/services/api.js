@@ -50,6 +50,7 @@ export const authApi = {
   getSchoolAdmin: (id) => api.get(`/auth/school-admins/${id}/`),
   updateSchoolAdmin: (id, data) => api.patch(`/auth/school-admins/${id}/`, data),
   deleteSchoolAdmin: (id) => api.delete(`/auth/school-admins/${id}/`),
+  resetAdminPassword: (id, new_password) => api.post(`/auth/school-admins/${id}/reset-password/`, { new_password }),
 }
 
 export const schoolApi = {

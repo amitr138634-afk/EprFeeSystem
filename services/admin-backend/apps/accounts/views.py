@@ -111,3 +111,20 @@ class SchoolAdminDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = UserSerializer
     permission_classes = [IsSuperAdmin]
     queryset = User.objects.filter(role='school_admin')
+
+
+class ResetSchoolAdminPasswordView(APIView):
+    """Super Admin resets a school admin's password directly (no old password needed)."""
+    permission_classes = [IsSuperAdmin]
+
+    def post(self, request, pk):
+        new_password = request.data.get('new_password', '')
+        if len(new_password) < 8:
+            return Response({'detail': 'Password must be at least 8 characters.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            user = User.objects.get(pk=pk, role='school_admin')
+        except User.DoesNotExist:
+            return Response({'detail': 'School admin not found.'}, status=status.HTTP_404_NOT_FOUND)
+        user.set_password(new_password)
+        user.save()
+        return Response({'detail': 'Password updated successfully.'})

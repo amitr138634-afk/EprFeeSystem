@@ -57,7 +57,7 @@ export default function Login() {
               <GraduationCap size={26} className="text-blue-400" />
             </div>
             <div>
-              <p className="text-white font-bold text-xl tracking-tight">School ERP</p>
+              <p className="text-white font-bold text-xl tracking-tight">Shyam ERP Solutions</p>
               <p className="text-blue-400 text-xs uppercase tracking-widest">Management System</p>
             </div>
           </div>
@@ -94,7 +94,7 @@ export default function Login() {
         {/* Bottom tagline */}
         <div className="relative z-10">
           <p className="text-slate-500 text-xs">
-            © 2026 School ERP System · Secure · Multi-Tenant · Cloud Ready
+            © 2026 Shyam ERP Solutions · Secure · Multi-Tenant · Cloud Ready
           </p>
         </div>
       </div>
@@ -108,7 +108,7 @@ export default function Login() {
             <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center">
               <GraduationCap size={22} className="text-white" />
             </div>
-            <p className="font-bold text-xl text-gray-900">School ERP</p>
+            <p className="font-bold text-xl text-gray-900">Shyam ERP Solutions</p>
           </div>
 
           <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8">
@@ -184,7 +184,7 @@ export default function Login() {
           </div>
 
           <p className="text-center text-xs text-gray-400 mt-5">
-            Multi-Tenant School ERP · Secure Login
+            Shyam ERP Solutions · Secure Login
           </p>
         </div>
       </div>

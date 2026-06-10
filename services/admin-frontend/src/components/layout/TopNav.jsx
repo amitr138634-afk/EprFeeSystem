@@ -174,7 +174,7 @@ export default function TopNav() {
           </div>
           <div className="leading-tight min-w-0">
             <p className="text-sm font-bold text-gray-800 truncate">
-              {user?.role === 'super_admin' ? 'School ERP' : (user?.school_name || 'School ERP')}
+              {user?.role === 'super_admin' ? 'Shyam ERP Solutions' : (user?.school_name || 'Shyam ERP Solutions')}
             </p>
             <p className="text-[10px] text-gray-500 uppercase tracking-wide">
               {user?.role === 'super_admin' ? 'Super Admin' : 'Admin Panel'}

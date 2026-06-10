@@ -16,4 +16,5 @@ urlpatterns = [
     # Super Admin: create / list school admins
     path('school-admins/', views.SchoolAdminListCreateView.as_view(), name='school-admin-list-create'),
     path('school-admins/<int:pk>/', views.SchoolAdminDetailView.as_view(), name='school-admin-detail'),
+    path('school-admins/<int:pk>/reset-password/', views.ResetSchoolAdminPasswordView.as_view(), name='school-admin-reset-password'),
 ]

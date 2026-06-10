@@ -133,3 +133,6 @@ Authenticate by calling `POST /api/auth/login/` first and clicking **Authorize**
 * Super-Admin nav is restricted to *School List / Create School / Create Admin* only.
 * Added `CreateAdmin.jsx`, `AdminList.jsx`, and wired them into the admin-frontend router.
 * Added `seed_superadmin.py`, `01_create_central_db.sql`, `02_create_school_db_template.sql`, and `docs/DATABASE.md`.
+
+
+in super admin pannel dashbord and

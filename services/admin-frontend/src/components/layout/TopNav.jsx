@@ -1,39 +1,22 @@
 import { NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useState, useRef, useEffect } from 'react'
-import { LogOut, ChevronDown, Building2 } from 'lucide-react'
+import { LogOut, ChevronDown, GraduationCap } from 'lucide-react'
 import clsx from 'clsx'
 import toast from 'react-hot-toast'
 import useAuthStore from '../../store/authStore'
 import { authApi } from '../../services/api'
 
 /* ──────────────────────────────────────────────────────────────────────────
- * Nav configuration
+ * Nav config
  * ──────────────────────────────────────────────────────────────────────── */
-const SUPER_ADMIN_NAV = [
-  { label: 'Dashboard', to: '/dashboard', end: true },
-  {
-    label: 'Schools',
-    items: [
-      { label: 'All Schools',    to: '/schools' },
-      { label: 'Add New School', to: '/schools/create' },
-    ],
-  },
-  {
-    label: 'School Admins',
-    items: [
-      { label: 'All Admins',    to: '/admins' },
-      { label: 'Add New Admin', to: '/admins/create' },
-    ],
-  },
-]
-
 const SCHOOL_ADMIN_NAV = [
   { label: 'Dashboard', to: '/', end: true },
   {
     label: 'Students',
     items: [
-      { label: 'Student List',             to: '/students' },
-      { label: 'Student Strength (Class Wise)', to: '/students/strength' },
+      { label: 'Student List',     to: '/students' },
+      { label: 'Student Strength', to: '/students/strength' },
+      { label: 'Class & Section',  to: '/students/classes' },
     ],
   },
   {
@@ -50,23 +33,23 @@ const SCHOOL_ADMIN_NAV = [
       {
         title: 'Student Attendance',
         items: [
-          { label: 'Student Attendance',          to: '/attendance/students' },
-          { label: 'Attendance Register',         to: '/attendance/register' },
-          { label: 'Absent Log',                  to: '/attendance/absent-log' },
-          { label: 'Class Wise Attendance Status', to: '/attendance/summary' },
-          { label: 'Date Wise Summary',           to: '/attendance/date-wise' },
+          { label: 'Mark Attendance',    to: '/attendance/mark' },
+          { label: 'Date-wise Register', to: '/attendance/date-wise' },
+          { label: 'Absent Log',         to: '/attendance/absent-log' },
+          { label: 'Monthly Register',   to: '/attendance/monthly' },
+          { label: 'Summary Report',     to: '/attendance/summary' },
         ],
       },
       {
         title: 'Staff Attendance',
         items: [
-          { label: 'Manage Shift',                    to: '/attendance/staff/shifts' },
-          { label: 'Staff Attendance',                to: '/attendance/staff' },
-          { label: 'Monthly Staff Attendance Report', to: '/attendance/staff/monthly' },
-          { label: 'Staff Holiday List',              to: '/attendance/staff/holidays' },
-          { label: 'Staff Leave Request',             to: '/attendance/staff/leave-requests' },
-          { label: 'Leave Balance Report',            to: '/attendance/staff/leave-balance' },
-          { label: 'Date Wise Staff Summary',         to: '/attendance/staff/date-wise' },
+          { label: 'Shift Setup',      to: '/attendance/staff/shifts' },
+          { label: 'Mark Attendance',  to: '/attendance/staff/mark' },
+          { label: 'Monthly Report',   to: '/attendance/staff/monthly' },
+          { label: 'Holidays',         to: '/attendance/staff/holidays' },
+          { label: 'Leave Requests',   to: '/attendance/staff/leave-requests' },
+          { label: 'Leave Balance',    to: '/attendance/staff/leave-balance' },
+          { label: 'Date-wise Report', to: '/attendance/staff/date-wise' },
         ],
       },
     ],
@@ -74,13 +57,13 @@ const SCHOOL_ADMIN_NAV = [
   {
     label: 'Timetable',
     items: [
-      { label: 'Add / Update Timetable',      to: '/timetable' },
-      { label: 'View Teacher Timetable',      to: '/timetable/teacher' },
-      { label: 'View Day Wise Timetable',     to: '/timetable/day-wise' },
-      { label: 'Class Wise Timetable',        to: '/timetable/class-wise' },
-      { label: 'Timetable Workload',          to: '/timetable/workload' },
-      { label: 'Teacher Substitute Report',   to: '/timetable/substitute' },
-      { label: 'Month Wise Substitute Report',to: '/timetable/substitute-monthly' },
+      { label: 'Subjects',           to: '/timetable/subjects' },
+      { label: 'Periods',            to: '/timetable/periods' },
+      { label: 'Class-wise',         to: '/timetable/class-wise' },
+      { label: 'Teacher-wise',       to: '/timetable/teacher' },
+      { label: 'Day-wise',           to: '/timetable/day-wise' },
+      { label: 'Workload Report',    to: '/timetable/workload' },
+      { label: 'Substitute Teacher', to: '/timetable/substitute' },
     ],
   },
   {
@@ -89,47 +72,34 @@ const SCHOOL_ADMIN_NAV = [
       {
         title: 'Assign Subject & Test',
         items: [
-          { label: 'Assign Subject & Test', to: '/cce/subjects' },
-          { label: 'Marks Feeding',         to: '/academics/marks' },
-          { label: 'Calculation Master',    to: '/cce/calculation-master' },
-          { label: 'Remark Master',         to: '/cce/remark-master' },
-          { label: 'Signature Master',      to: '/cce/signature-master' },
-          { label: 'Generate Report Card',  to: '/cce/report-card' },
+          { label: 'Exam Types',        to: '/cce/exam-types' },
+          { label: 'Assign Subjects',   to: '/cce/assign-subjects' },
+          { label: 'Enter Marks',       to: '/cce/enter-marks' },
+          { label: 'Bulk Marks Upload', to: '/cce/bulk-marks' },
+          { label: 'Remarks Master',    to: '/cce/remarks' },
+          { label: 'Signature Master',  to: '/cce/signatures' },
         ],
       },
       {
         title: 'Subject Allocation',
         items: [
-          { label: 'Assign Subject',           to: '/academics/subjects' },
-          { label: 'Add Subject (Student)',     to: '/cce/student-subjects' },
-          { label: 'Multiple Subject Mapping',  to: '/cce/multiple-subject-mapping' },
+          { label: 'Class-wise Allocation', to: '/cce/class-allocation' },
+          { label: 'Teacher Allocation',    to: '/cce/teacher-allocation' },
+          { label: 'Student Subjects',      to: '/cce/student-subjects' },
         ],
       },
     ],
   },
 ]
 
-/* ──────────────────────────────────────────────────────────────────────────
- * Dropdown item — shared between simple and grouped dropdowns
- * ──────────────────────────────────────────────────────────────────────── */
-function DropdownItem({ to, label, onClick }) {
-  return (
-    <NavLink
-      to={to}
-      onClick={onClick}
-      className={({ isActive }) => clsx(
-        'flex items-center px-4 py-2 text-sm whitespace-nowrap transition-colors duration-100 rounded-lg mx-1',
-        isActive
-          ? 'bg-blue-600 text-white font-medium'
-          : 'text-gray-700 hover:bg-blue-50 hover:text-blue-700'
-      )}
-    />
-  )
-}
+const SUPER_ADMIN_NAV = [
+  { label: 'Dashboard', to: '/', end: true },
+  { label: 'Schools',   to: '/schools' },
+]
 
-/* ──────────────────────────────────────────────────────────────────────────
- * Single nav entry — link, simple dropdown, or grouped mega-dropdown
- * ──────────────────────────────────────────────────────────────────────── */
+const COLS_CLASS = { 1: 'grid-cols-1', 2: 'grid-cols-2', 3: 'grid-cols-3' }
+const COLS_WIDTH = { 1: 'min-w-[200px]', 2: 'min-w-[480px]', 3: 'min-w-[680px]' }
+
 function NavEntry({ entry }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
@@ -142,24 +112,19 @@ function NavEntry({ entry }) {
 
   useEffect(() => {
     if (!open) return
-    const handler = e => {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false)
-    }
+    const handler = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [open])
 
-  /* Simple direct link */
   if (!entry.items && !entry.groups) {
     return (
       <NavLink
         to={entry.to}
         end={entry.end}
         className={({ isActive }) => clsx(
-          'px-3 py-1.5 text-sm font-medium rounded-lg transition-all duration-150',
-          isActive
-            ? 'bg-blue-600 text-white shadow-sm'
-            : 'text-gray-200 hover:bg-white/10 hover:text-white'
+          'px-3 py-2 text-sm font-medium rounded-md transition-colors duration-150 whitespace-nowrap',
+          isActive ? 'text-green-700 bg-green-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
         )}
       >
         {entry.label}
@@ -167,6 +132,7 @@ function NavEntry({ entry }) {
     )
   }
 
+  const cols = entry.cols || (entry.groups ? 2 : 1)
   const hasGroups = !!entry.groups
 
   return (
@@ -174,66 +140,51 @@ function NavEntry({ entry }) {
       <button
         onClick={() => setOpen(v => !v)}
         className={clsx(
-          'flex items-center gap-1 px-3 py-1.5 text-sm font-medium rounded-lg transition-all duration-150',
+          'flex items-center gap-1 px-3 py-2 text-sm font-medium rounded-md transition-colors duration-150 whitespace-nowrap',
           open || isParentActive
-            ? 'bg-white text-blue-700 shadow-sm'
-            : 'text-gray-200 hover:bg-white/10 hover:text-white'
+            ? 'text-green-700 bg-green-50'
+            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
         )}
       >
         {entry.label}
-        <ChevronDown
-          size={13}
-          className={clsx('transition-transform duration-200', open && 'rotate-180')}
-        />
+        <ChevronDown size={13} className={clsx('transition-transform duration-200 mt-px', open && 'rotate-180')} />
       </button>
 
-      {/* Outer wrapper: controls position & pointer-events */}
-      <div
-        className={clsx(
-          'absolute top-[calc(100%+10px)] z-50',
-          hasGroups ? 'left-1/2 -translate-x-1/2' : 'left-0',
-          !open && 'pointer-events-none'
-        )}
-      >
-        {/* Inner wrapper: controls animation */}
-        <div
-          className={clsx(
-            'bg-white rounded-xl shadow-2xl border border-gray-100 overflow-hidden',
-            'transition-all duration-200 ease-out origin-top',
-            hasGroups ? 'min-w-[520px]' : 'min-w-[220px]',
-            open ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 -translate-y-2'
-          )}
-        >
+      <div className={clsx(
+        'absolute top-[calc(100%+6px)] z-50',
+        hasGroups ? 'left-1/2 -translate-x-1/2' : 'left-0',
+        !open && 'pointer-events-none'
+      )}>
+        <div className={clsx(
+          'bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden',
+          'transition-all duration-200 ease-out origin-top',
+          COLS_WIDTH[cols] || 'min-w-[200px]',
+          open ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 -translate-y-2'
+        )}>
           {hasGroups ? (
-            /* Grouped mega-dropdown */
-            <div>
-              <div className="flex divide-x divide-gray-100">
-                {entry.groups.map((group) => (
-                  <div key={group.title} className="flex-1 py-3">
-                    <p className="px-4 pb-2 pt-1 text-[10px] font-bold uppercase tracking-widest text-blue-600 border-b border-gray-50 mb-1">
-                      {group.title}
-                    </p>
-                    {group.items.map(item => (
-                      <NavLink
-                        key={item.to}
-                        to={item.to}
-                        onClick={() => setOpen(false)}
-                        className={({ isActive }) => clsx(
-                          'flex items-center px-4 py-2 text-sm transition-colors duration-100',
-                          isActive
-                            ? 'bg-blue-50 text-blue-700 font-semibold'
-                            : 'text-gray-600 hover:bg-gray-50 hover:text-blue-700'
-                        )}
-                      >
-                        {item.label}
-                      </NavLink>
-                    ))}
-                  </div>
-                ))}
-              </div>
+            <div className={clsx('grid divide-x divide-gray-100', COLS_CLASS[cols] || 'grid-cols-2')}>
+              {entry.groups.map(group => (
+                <div key={group.title} className="py-2 px-1">
+                  <p className="px-3 pt-2 pb-1.5 text-[10px] font-bold uppercase tracking-widest text-green-600">
+                    {group.title}
+                  </p>
+                  {group.items.map(item => (
+                    <NavLink
+                      key={item.to}
+                      to={item.to}
+                      onClick={() => setOpen(false)}
+                      className={({ isActive }) => clsx(
+                        'flex items-center px-3 py-1.5 text-sm rounded-lg mx-0.5 transition-colors duration-100',
+                        isActive ? 'bg-green-50 text-green-700 font-medium' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                      )}
+                    >
+                      {item.label}
+                    </NavLink>
+                  ))}
+                </div>
+              ))}
             </div>
           ) : (
-            /* Simple dropdown */
             <div className="py-1.5">
               {entry.items.map(item => (
                 <NavLink
@@ -241,10 +192,8 @@ function NavEntry({ entry }) {
                   to={item.to}
                   onClick={() => setOpen(false)}
                   className={({ isActive }) => clsx(
-                    'flex items-center px-4 py-2.5 text-sm whitespace-nowrap transition-colors duration-100',
-                    isActive
-                      ? 'bg-blue-50 text-blue-700 font-semibold'
-                      : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600'
+                    'flex items-center px-4 py-2 text-sm whitespace-nowrap transition-colors duration-100',
+                    isActive ? 'bg-green-50 text-green-700 font-medium' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                   )}
                 >
                   {item.label}
@@ -258,15 +207,11 @@ function NavEntry({ entry }) {
   )
 }
 
-/* ──────────────────────────────────────────────────────────────────────────
- * Top navbar
- * ──────────────────────────────────────────────────────────────────────── */
 export default function TopNav() {
   const { user, logout } = useAuthStore()
   const navigate = useNavigate()
-  const nav = user?.role === 'super_admin' ? SUPER_ADMIN_NAV : SCHOOL_ADMIN_NAV
-
   const isSuperAdmin = user?.role === 'super_admin'
+  const nav = isSuperAdmin ? SUPER_ADMIN_NAV : SCHOOL_ADMIN_NAV
 
   const handleLogout = async () => {
     try {
@@ -279,65 +224,45 @@ export default function TopNav() {
   }
 
   return (
-    <header className="sticky top-0 z-30 shadow-lg">
-      {/* Main nav bar */}
-      <div className={clsx(
-        'h-14 flex items-center justify-between px-4 sm:px-6',
-        isSuperAdmin
-          ? 'bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900'
-          : 'bg-gradient-to-r from-blue-800 via-blue-700 to-indigo-800'
-      )}>
+    <header className="sticky top-0 z-30 bg-white border-b border-gray-200">
+      <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
 
-        {/* Left — Brand */}
-        <div className="flex items-center gap-2.5 min-w-0 shrink-0">
-          <div className="w-8 h-8 rounded-lg bg-white/20 backdrop-blur-sm flex items-center justify-center shrink-0 border border-white/20">
-            <Building2 size={17} className="text-white" />
+        {/* Brand */}
+        <div className="flex items-center gap-2.5 shrink-0">
+          <div className="w-8 h-8 rounded-lg bg-green-600 flex items-center justify-center">
+            <GraduationCap size={16} className="text-white" />
           </div>
-          <div className="leading-tight min-w-0">
-            <p className="text-sm font-bold text-white truncate">
-              {isSuperAdmin ? 'Shyam ERP Solutions' : (user?.school_name || 'Shyam ERP Solutions')}
-            </p>
-            <p className="text-[10px] text-white/60 uppercase tracking-wide">
-              {isSuperAdmin ? 'Super Admin' : 'Admin Panel'}
-            </p>
+          <div className="leading-tight">
+            <p className="text-sm font-bold text-gray-900 leading-none">Shyam ERP</p>
+            <p className="text-[10px] text-gray-400 leading-none mt-0.5">Admin Panel</p>
           </div>
         </div>
 
-        {/* Center — Navigation */}
-        <nav className="flex items-center gap-0.5 mx-4">
-          {nav.map(entry => (
-            <NavEntry key={entry.label} entry={entry} />
-          ))}
+        {/* Nav links */}
+        <nav className="flex items-center justify-center gap-0.5 flex-1 flex-wrap">
+          {nav.map(entry => <NavEntry key={entry.label} entry={entry} />)}
         </nav>
 
-        {/* Right — User + Logout */}
+        {/* Right side */}
         <div className="flex items-center gap-2 shrink-0">
           <div className="hidden md:flex flex-col items-end leading-tight">
-            <p className="text-sm font-medium text-white">{user?.full_name}</p>
-            <p className="text-[10px] text-white/60 capitalize">
+            <p className="text-sm font-semibold text-gray-900 leading-none">{user?.full_name}</p>
+            <p className="text-[10px] text-gray-400 capitalize leading-none mt-0.5">
               {user?.role?.replace('_', ' ')}
             </p>
           </div>
-          <div className="w-8 h-8 rounded-full bg-white/20 border border-white/30 text-white flex items-center justify-center font-semibold text-sm">
+          <div className="w-8 h-8 rounded-full bg-green-100 border border-green-200 text-green-700 flex items-center justify-center font-semibold text-sm">
             {(user?.full_name || 'A').charAt(0).toUpperCase()}
           </div>
           <button
             onClick={handleLogout}
             title="Logout"
-            className="p-2 rounded-lg hover:bg-white/10 text-white/70 hover:text-white transition-colors duration-150"
+            className="p-2 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors duration-150"
           >
             <LogOut size={15} />
           </button>
         </div>
       </div>
-
-      {/* Thin accent line below nav */}
-      <div className={clsx(
-        'h-0.5',
-        isSuperAdmin
-          ? 'bg-gradient-to-r from-slate-600 via-blue-500 to-slate-600'
-          : 'bg-gradient-to-r from-blue-500 via-indigo-400 to-blue-500'
-      )} />
     </header>
   )
 }

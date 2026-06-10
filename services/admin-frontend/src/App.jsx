@@ -4,7 +4,6 @@ import useAuthStore from './store/authStore'
 import Layout from './components/layout/Layout'
 import Login from './pages/auth/Login'
 import Dashboard from './pages/Dashboard'
-import ComingSoon from './pages/ComingSoon'
 
 // Super Admin pages
 import SuperAdminDashboard from './pages/superadmin/SuperAdminDashboard'
@@ -21,20 +20,45 @@ import ClassMaster from './pages/students/ClassMaster'
 // School Admin — Staff
 import StaffList from './pages/staff/StaffList'
 import DepartmentMaster from './pages/staff/DepartmentMaster'
+import DesignationMaster from './pages/staff/DesignationMaster'
 
-// School Admin — Attendance
+// School Admin — Student Attendance
 import StudentAttendance from './pages/attendance/StudentAttendance'
 import AttendanceRegister from './pages/attendance/AttendanceRegister'
 import AbsentLog from './pages/attendance/AbsentLog'
+import MonthlyAttendance from './pages/attendance/MonthlyAttendance'
 import AttendanceSummary from './pages/attendance/AttendanceSummary'
+
+// School Admin — Staff Attendance
+import ShiftMaster from './pages/attendance/ShiftMaster'
 import StaffAttendance from './pages/attendance/StaffAttendance'
+import StaffMonthlyReport from './pages/attendance/StaffMonthlyReport'
+import HolidayMaster from './pages/attendance/HolidayMaster'
+import LeaveRequests from './pages/attendance/LeaveRequests'
+import LeaveBalance from './pages/attendance/LeaveBalance'
+import DateWiseStaffSummary from './pages/attendance/DateWiseStaffSummary'
 
 // School Admin — Timetable
-import TimetableView from './pages/timetable/TimetableView'
+import SubjectMaster from './pages/timetable/SubjectMaster'
+import PeriodMaster from './pages/timetable/PeriodMaster'
+import ClassWiseTimetable from './pages/timetable/ClassWiseTimetable'
+import TeacherTimetable from './pages/timetable/TeacherTimetable'
+import DayWiseTimetable from './pages/timetable/DayWiseTimetable'
+import WorkloadReport from './pages/timetable/WorkloadReport'
+import SubstituteTeacher from './pages/timetable/SubstituteTeacher'
 
-// School Admin — Academics / CCE
-import MarksFeeding from './pages/academics/MarksFeeding'
-import SubjectAllocation from './pages/academics/SubjectAllocation'
+// School Admin — CCE / Assign Subject & Test
+import ExamTypes from './pages/cce/ExamTypes'
+import AssignSubjects from './pages/cce/AssignSubjects'
+import EnterMarks from './pages/cce/EnterMarks'
+import BulkMarks from './pages/cce/BulkMarks'
+import RemarkMaster from './pages/cce/RemarkMaster'
+import SignatureMaster from './pages/cce/SignatureMaster'
+
+// School Admin — CCE / Subject Allocation
+import ClassAllocation from './pages/cce/ClassAllocation'
+import TeacherAllocation from './pages/cce/TeacherAllocation'
+import StudentSubjects from './pages/cce/StudentSubjects'
 
 const SCHOOL_ROLES = ['school_admin', 'staff', 'teacher']
 const ADMIN_ONLY   = ['school_admin']
@@ -48,10 +72,6 @@ function PrivateRoute({ children, roles }) {
 
 function SR({ roles, children }) {
   return <PrivateRoute roles={roles}>{children}</PrivateRoute>
-}
-
-function CS({ title, roles }) {
-  return <SR roles={roles || SCHOOL_ROLES}><ComingSoon title={title} /></SR>
 }
 
 function HomeRedirect() {
@@ -78,52 +98,52 @@ export default function App() {
         <Route path="admins/create"  element={<SR roles={['super_admin']}><CreateAdmin /></SR>} />
 
         {/* ── Students ─────────────────────────────────────────────── */}
-        <Route path="students"         element={<SR roles={SCHOOL_ROLES}><StudentList /></SR>} />
-        <Route path="students/strength"element={<SR roles={SCHOOL_ROLES}><StudentStrength /></SR>} />
-        <Route path="students/classes" element={<SR roles={ADMIN_ONLY}><ClassMaster /></SR>} />
+        <Route path="students"          element={<SR roles={SCHOOL_ROLES}><StudentList /></SR>} />
+        <Route path="students/strength" element={<SR roles={SCHOOL_ROLES}><StudentStrength /></SR>} />
+        <Route path="students/classes"  element={<SR roles={ADMIN_ONLY}><ClassMaster /></SR>} />
 
         {/* ── Staff ────────────────────────────────────────────────── */}
-        <Route path="staff"                 element={<SR roles={SCHOOL_ROLES}><StaffList /></SR>} />
-        <Route path="staff/departments"     element={<SR roles={ADMIN_ONLY}><DepartmentMaster /></SR>} />
-        <Route path="staff/designations"    element={<CS title="Designation Master" roles={ADMIN_ONLY} />} />
+        <Route path="staff"              element={<SR roles={SCHOOL_ROLES}><StaffList /></SR>} />
+        <Route path="staff/departments"  element={<SR roles={ADMIN_ONLY}><DepartmentMaster /></SR>} />
+        <Route path="staff/designations" element={<SR roles={ADMIN_ONLY}><DesignationMaster /></SR>} />
 
         {/* ── Student Attendance ───────────────────────────────────── */}
-        <Route path="attendance/students"   element={<SR roles={SCHOOL_ROLES}><StudentAttendance /></SR>} />
-        <Route path="attendance/register"   element={<SR roles={SCHOOL_ROLES}><AttendanceRegister /></SR>} />
+        <Route path="attendance/mark"       element={<SR roles={SCHOOL_ROLES}><StudentAttendance /></SR>} />
+        <Route path="attendance/date-wise"  element={<SR roles={SCHOOL_ROLES}><AttendanceRegister /></SR>} />
         <Route path="attendance/absent-log" element={<SR roles={SCHOOL_ROLES}><AbsentLog /></SR>} />
+        <Route path="attendance/monthly"    element={<SR roles={SCHOOL_ROLES}><MonthlyAttendance /></SR>} />
         <Route path="attendance/summary"    element={<SR roles={SCHOOL_ROLES}><AttendanceSummary /></SR>} />
-        <Route path="attendance/date-wise"  element={<CS title="Date Wise Summary" />} />
 
         {/* ── Staff Attendance ─────────────────────────────────────── */}
-        <Route path="attendance/staff"                  element={<SR roles={ADMIN_ONLY}><StaffAttendance /></SR>} />
-        <Route path="attendance/staff/shifts"           element={<CS title="Manage Shift"                    roles={ADMIN_ONLY} />} />
-        <Route path="attendance/staff/monthly"          element={<CS title="Monthly Staff Attendance Report" roles={ADMIN_ONLY} />} />
-        <Route path="attendance/staff/holidays"         element={<CS title="Staff Holiday List"              roles={ADMIN_ONLY} />} />
-        <Route path="attendance/staff/leave-requests"   element={<CS title="Staff Leave Request"             roles={ADMIN_ONLY} />} />
-        <Route path="attendance/staff/leave-balance"    element={<CS title="Leave Balance Report"            roles={ADMIN_ONLY} />} />
-        <Route path="attendance/staff/date-wise"        element={<CS title="Date Wise Staff Summary"         roles={ADMIN_ONLY} />} />
+        <Route path="attendance/staff/shifts"         element={<SR roles={ADMIN_ONLY}><ShiftMaster /></SR>} />
+        <Route path="attendance/staff/mark"           element={<SR roles={ADMIN_ONLY}><StaffAttendance /></SR>} />
+        <Route path="attendance/staff/monthly"        element={<SR roles={ADMIN_ONLY}><StaffMonthlyReport /></SR>} />
+        <Route path="attendance/staff/holidays"       element={<SR roles={ADMIN_ONLY}><HolidayMaster /></SR>} />
+        <Route path="attendance/staff/leave-requests" element={<SR roles={ADMIN_ONLY}><LeaveRequests /></SR>} />
+        <Route path="attendance/staff/leave-balance"  element={<SR roles={ADMIN_ONLY}><LeaveBalance /></SR>} />
+        <Route path="attendance/staff/date-wise"      element={<SR roles={ADMIN_ONLY}><DateWiseStaffSummary /></SR>} />
 
         {/* ── Timetable ────────────────────────────────────────────── */}
-        <Route path="timetable"                   element={<SR roles={SCHOOL_ROLES}><TimetableView /></SR>} />
-        <Route path="timetable/teacher"           element={<CS title="View Teacher Timetable" />} />
-        <Route path="timetable/day-wise"          element={<CS title="View Day Wise Timetable" />} />
-        <Route path="timetable/class-wise"        element={<CS title="Class Wise Timetable" />} />
-        <Route path="timetable/workload"          element={<CS title="Timetable Workload" />} />
-        <Route path="timetable/substitute"        element={<CS title="Teacher Substitute Report" />} />
-        <Route path="timetable/substitute-monthly"element={<CS title="Month Wise Substitute Report" />} />
+        <Route path="timetable/subjects"   element={<SR roles={ADMIN_ONLY}><SubjectMaster /></SR>} />
+        <Route path="timetable/periods"    element={<SR roles={ADMIN_ONLY}><PeriodMaster /></SR>} />
+        <Route path="timetable/class-wise" element={<SR roles={SCHOOL_ROLES}><ClassWiseTimetable /></SR>} />
+        <Route path="timetable/teacher"    element={<SR roles={SCHOOL_ROLES}><TeacherTimetable /></SR>} />
+        <Route path="timetable/day-wise"   element={<SR roles={SCHOOL_ROLES}><DayWiseTimetable /></SR>} />
+        <Route path="timetable/workload"   element={<SR roles={SCHOOL_ROLES}><WorkloadReport /></SR>} />
+        <Route path="timetable/substitute" element={<SR roles={ADMIN_ONLY}><SubstituteTeacher /></SR>} />
 
         {/* ── CCE — Assign Subject & Test ──────────────────────────── */}
-        <Route path="academics/marks"             element={<SR roles={SCHOOL_ROLES}><MarksFeeding /></SR>} />
-        <Route path="academics/subjects"          element={<SR roles={ADMIN_ONLY}><SubjectAllocation /></SR>} />
-        <Route path="cce/subjects"                element={<CS title="Assign Subject & Test" roles={ADMIN_ONLY} />} />
-        <Route path="cce/calculation-master"      element={<CS title="Calculation Master"    roles={ADMIN_ONLY} />} />
-        <Route path="cce/remark-master"           element={<CS title="Remark Master"         roles={ADMIN_ONLY} />} />
-        <Route path="cce/signature-master"        element={<CS title="Signature Master"      roles={ADMIN_ONLY} />} />
-        <Route path="cce/report-card"             element={<CS title="Generate Report Card"  roles={ADMIN_ONLY} />} />
+        <Route path="cce/exam-types"      element={<SR roles={ADMIN_ONLY}><ExamTypes /></SR>} />
+        <Route path="cce/assign-subjects" element={<SR roles={ADMIN_ONLY}><AssignSubjects /></SR>} />
+        <Route path="cce/enter-marks"     element={<SR roles={SCHOOL_ROLES}><EnterMarks /></SR>} />
+        <Route path="cce/bulk-marks"      element={<SR roles={SCHOOL_ROLES}><BulkMarks /></SR>} />
+        <Route path="cce/remarks"         element={<SR roles={ADMIN_ONLY}><RemarkMaster /></SR>} />
+        <Route path="cce/signatures"      element={<SR roles={ADMIN_ONLY}><SignatureMaster /></SR>} />
 
         {/* ── CCE — Subject Allocation ─────────────────────────────── */}
-        <Route path="cce/student-subjects"          element={<CS title="Add Subject (Student)"     roles={ADMIN_ONLY} />} />
-        <Route path="cce/multiple-subject-mapping"  element={<CS title="Multiple Subject Mapping"  roles={ADMIN_ONLY} />} />
+        <Route path="cce/class-allocation"   element={<SR roles={ADMIN_ONLY}><ClassAllocation /></SR>} />
+        <Route path="cce/teacher-allocation" element={<SR roles={ADMIN_ONLY}><TeacherAllocation /></SR>} />
+        <Route path="cce/student-subjects"   element={<SR roles={ADMIN_ONLY}><StudentSubjects /></SR>} />
       </Route>
     </Routes>
   )

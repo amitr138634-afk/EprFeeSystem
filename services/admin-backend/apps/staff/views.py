@@ -100,3 +100,71 @@ class LeaveRequestApproveView(APIView):
             return Response({'detail': 'Invalid action.'}, status=status.HTTP_400_BAD_REQUEST)
         except LeaveRequest.DoesNotExist:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+
+class DepartmentDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = DepartmentSerializer
+    permission_classes = [IsSchoolAdmin]
+    queryset = Department.objects.all()
+
+
+class DesignationDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = DesignationSerializer
+    permission_classes = [IsSchoolAdmin]
+    queryset = Designation.objects.all()
+
+
+class ShiftDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = ShiftSerializer
+    permission_classes = [IsSchoolAdmin]
+    queryset = Shift.objects.all()
+
+
+class LeaveTypeDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = LeaveTypeSerializer
+    permission_classes = [IsSchoolAdmin]
+    queryset = LeaveType.objects.all()
+
+
+class LeaveBalanceView(APIView):
+    permission_classes = [IsSchoolStaff]
+
+    def get(self, request):
+        from django.db.models import Sum, F, ExpressionWrapper, fields
+        staff_id = request.query_params.get('staff_id')
+        session_year = request.query_params.get('session_year', '')
+
+        qs = LeaveRequest.objects.filter(status='approved')
+        if staff_id:
+            qs = qs.filter(staff_id=staff_id)
+
+        leave_used = {}
+        for lr in qs.select_related('leave_type'):
+            days = (lr.to_date - lr.from_date).days + 1
+            key = (lr.staff_id, lr.leave_type_id)
+            leave_used[key] = leave_used.get(key, 0) + days
+
+        leave_types = LeaveType.objects.all()
+        staff_qs = Staff.objects.filter(status='active')
+        if staff_id:
+            staff_qs = staff_qs.filter(id=staff_id)
+
+        result = []
+        for staff in staff_qs:
+            balances = []
+            for lt in leave_types:
+                used = leave_used.get((staff.id, lt.id), 0)
+                balances.append({
+                    'leave_type': lt.name,
+                    'leave_type_id': lt.id,
+                    'allowed': lt.days_allowed,
+                    'used': used,
+                    'remaining': max(0, lt.days_allowed - used),
+                })
+            result.append({
+                'staff_id': staff.id,
+                'staff_name': staff.full_name,
+                'employee_id': staff.employee_id,
+                'balances': balances,
+            })
+        return Response(result)

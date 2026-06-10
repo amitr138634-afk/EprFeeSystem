@@ -286,3 +286,7 @@ attached scresnshot for admin pannel it should be like this similary for fee pan
 based on modules mentioned above and reasech on market then create based on your knowledge but keep
 
 keep readme file to run locally step by steps
+
+
+- UI consistent
+- 

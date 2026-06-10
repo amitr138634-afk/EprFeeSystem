@@ -104,3 +104,42 @@ class VehiclePartListCreateView(generics.ListCreateAPIView):
         if self.request.query_params.get('vehicle_id'):
             qs = qs.filter(vehicle_id=self.request.query_params['vehicle_id'])
         return qs
+
+
+class RouteDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = RouteSerializer
+    permission_classes = [IsSchoolAdmin]
+    queryset = Route.objects.all()
+
+
+class StopDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = StopSerializer
+    permission_classes = [IsSchoolAdmin]
+    queryset = Stop.objects.all()
+
+
+class StudentTransportDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = StudentTransportSerializer
+    permission_classes = [IsSchoolStaff]
+    queryset = StudentTransport.objects.all()
+
+
+class VehiclePartDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = VehiclePartSerializer
+    permission_classes = [IsSchoolAdmin]
+    queryset = VehiclePart.objects.all()
+
+
+class TransportDashboardView(APIView):
+    permission_classes = [IsSchoolStaff]
+
+    def get(self, request):
+        session_year = request.query_params.get('session_year', '')
+        total_using = StudentTransport.objects.filter(status='active', session_year=session_year).count()
+        total_vehicles = Vehicle.objects.filter(status='active').count()
+        total_routes = Route.objects.filter(is_active=True).count()
+        return Response({
+            'total_students_using_transport': total_using,
+            'active_vehicles': total_vehicles,
+            'active_routes': total_routes,
+        })

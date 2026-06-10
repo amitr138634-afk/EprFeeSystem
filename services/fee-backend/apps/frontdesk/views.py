@@ -102,3 +102,40 @@ class HRMLetterListCreateView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         serializer.save(issued_by=self.request.user.id)
+
+
+class AuthorisedPersonDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = AuthorisedPersonSerializer
+    permission_classes = [IsSchoolStaff]
+    queryset = AuthorisedPerson.objects.all()
+
+
+class HRMLetterDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = HRMLetterSerializer
+    permission_classes = [IsSchoolAdmin]
+    queryset = HRMLetter.objects.all()
+
+
+class ShortLeaveDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = ShortLeaveSerializer
+    permission_classes = [IsSchoolStaff]
+    queryset = ShortLeave.objects.all()
+
+
+class EnquiryDashboardView(APIView):
+    permission_classes = [IsSchoolStaff]
+
+    def get(self, request):
+        from apps.students.models import NewAdmission
+        from django.db.models import Count
+
+        counts = NewAdmission.objects.values('status').annotate(count=Count('id'))
+        result = {row['status']: row['count'] for row in counts}
+        total = sum(result.values())
+        return Response({
+            'total': total,
+            'enquiry': result.get('enquiry', 0),
+            'applied': result.get('applied', 0),
+            'admitted': result.get('admitted', 0),
+            'cancelled': result.get('cancelled', 0),
+        })

@@ -279,3 +279,94 @@ class AdditionalFeeListCreateView(generics.ListCreateAPIView):
     serializer_class = AdditionalFeeSerializer
     permission_classes = [IsSchoolAdmin]
     queryset = AdditionalFee.objects.filter(is_active=True)
+
+
+class FeeStructureDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = FeeStructureSerializer
+    permission_classes = [IsSchoolAdmin]
+    queryset = FeeStructure.objects.all()
+
+
+class DiscountHeadDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = DiscountHeadSerializer
+    permission_classes = [IsSchoolAdmin]
+    queryset = DiscountHead.objects.all()
+
+
+class CancelReceiptView(APIView):
+    permission_classes = [IsSchoolAdmin]
+
+    def post(self, request, pk):
+        try:
+            receipt = FeeReceipt.objects.get(pk=pk)
+            if receipt.status == 'cancelled':
+                return Response({'detail': 'Receipt already cancelled.'}, status=status.HTTP_400_BAD_REQUEST)
+            receipt.status = 'cancelled'
+            receipt.remarks = request.data.get('reason', 'Cancelled by admin')
+            receipt.save()
+            return Response(FeeReceiptSerializer(receipt).data)
+        except FeeReceipt.DoesNotExist:
+            return Response({'detail': 'Receipt not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+
+class MonthlyCollectionReportView(APIView):
+    permission_classes = [IsSchoolStaff]
+
+    def get(self, request):
+        params = request.query_params
+        month = params.get('month')
+        year = params.get('year')
+        session_year = params.get('session_year', '')
+
+        qs = FeeReceipt.objects.filter(status='paid')
+        if month and year:
+            qs = qs.filter(payment_date__month=month, payment_date__year=year)
+        elif session_year:
+            qs = qs.filter(session_year=session_year)
+
+        total = qs.aggregate(total=Sum('net_amount'))['total'] or 0
+        by_mode = qs.values('payment_mode').annotate(
+            count=Count('id'), amount=Sum('net_amount')
+        )
+        by_class = qs.values('class_name').annotate(
+            count=Count('id'), amount=Sum('net_amount')
+        ).order_by('class_name')
+
+        return Response({
+            'month': month,
+            'year': year,
+            'total_receipts': qs.count(),
+            'total_amount': total,
+            'by_payment_mode': list(by_mode),
+            'by_class': list(by_class),
+        })
+
+
+class BookSetDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = BookSetSerializer
+    permission_classes = [IsSchoolAdmin]
+    queryset = BookSet.objects.all()
+
+
+class BookDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = BookSerializer
+    permission_classes = [IsSchoolAdmin]
+    queryset = Book.objects.all()
+
+
+class UniformItemDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = UniformItemSerializer
+    permission_classes = [IsSchoolAdmin]
+    queryset = UniformItem.objects.all()
+
+
+class DepositFeeDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = DepositFeeSerializer
+    permission_classes = [IsSchoolStaff]
+    queryset = DepositFee.objects.all()
+
+
+class AdditionalFeeDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = AdditionalFeeSerializer
+    permission_classes = [IsSchoolAdmin]
+    queryset = AdditionalFee.objects.all()

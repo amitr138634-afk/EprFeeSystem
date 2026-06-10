@@ -89,6 +89,24 @@ class SignatureMasterListCreateView(generics.ListCreateAPIView):
     queryset = SignatureMaster.objects.all()
 
 
+class ExamTypeDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = ExamTypeSerializer
+    permission_classes = [IsSchoolAdmin]
+    queryset = ExamType.objects.all()
+
+
+class SubjectAllocationDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = SubjectAllocationSerializer
+    permission_classes = [IsSchoolAdmin]
+    queryset = SubjectAllocation.objects.all()
+
+
+class RemarkMasterDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = RemarkMasterSerializer
+    permission_classes = [IsSchoolAdmin]
+    queryset = RemarkMaster.objects.all()
+
+
 class StudentSubjectView(generics.ListCreateAPIView):
     serializer_class = StudentSubjectSerializer
     permission_classes = [IsSchoolStaff]

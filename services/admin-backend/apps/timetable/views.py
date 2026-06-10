@@ -57,6 +57,18 @@ class TeacherTimetableView(APIView):
         return Response(serializer.data)
 
 
+class SubjectDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = SubjectSerializer
+    permission_classes = [IsSchoolAdmin]
+    queryset = Subject.objects.all()
+
+
+class PeriodDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = PeriodSerializer
+    permission_classes = [IsSchoolAdmin]
+    queryset = Period.objects.all()
+
+
 class SubstituteTeacherListCreateView(generics.ListCreateAPIView):
     serializer_class = SubstituteTeacherSerializer
     permission_classes = [IsSchoolAdmin]

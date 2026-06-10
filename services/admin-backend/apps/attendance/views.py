@@ -147,3 +147,145 @@ class HolidayListCreateView(generics.ListCreateAPIView):
         if year:
             qs = qs.filter(date__year=year)
         return qs
+
+
+class HolidayDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = HolidaySerializer
+    permission_classes = [IsSchoolAdmin]
+    queryset = Holiday.objects.all()
+
+
+class DashboardStatsView(APIView):
+    permission_classes = [IsSchoolStaff]
+
+    def get(self, request):
+        from apps.students.models import Student, Section
+        from apps.staff.models import Staff, LeaveRequest
+
+        today = timezone.now().date()
+
+        total_students = Student.objects.filter(status='active').count()
+        total_staff = Staff.objects.filter(status='active').count()
+
+        present_students = StudentAttendance.objects.filter(
+            date=today, status='present'
+        ).count()
+        absent_students = StudentAttendance.objects.filter(
+            date=today, status='absent'
+        ).count()
+        present_staff = StaffAttendance.objects.filter(
+            date=today, status='present'
+        ).count()
+
+        class_attendance = (
+            StudentAttendance.objects
+            .filter(date=today)
+            .values('student__class_ref__name', 'student__class_ref__order')
+            .annotate(
+                total=Count('id'),
+                present=Count('id', filter=Q(status='present')),
+                absent=Count('id', filter=Q(status='absent')),
+            )
+            .order_by('student__class_ref__order')
+        )
+
+        # --- Absent staff today ---
+        absent_staff = [
+            {
+                'name': sa.staff.full_name,
+                'designation': sa.staff.designation.name if sa.staff.designation else '',
+            }
+            for sa in StaffAttendance.objects
+                .filter(date=today, status__in=['absent', 'leave'])
+                .select_related('staff', 'staff__designation')
+        ]
+
+        # --- Today's pending leave requests (overlapping today) ---
+        today_leave_requests = [
+            {
+                'staff_name': lr.staff.full_name,
+                'leave_type': lr.leave_type.name if lr.leave_type else '',
+                'from_date': lr.from_date,
+                'to_date': lr.to_date,
+            }
+            for lr in LeaveRequest.objects
+                .filter(status='pending', from_date__lte=today, to_date__gte=today)
+                .select_related('staff', 'leave_type')
+        ]
+
+        # --- Birthdays today ---
+        student_birthdays = [
+            {
+                'name': s.full_name,
+                'class_section': (
+                    f"{s.class_ref.name}-{s.section.name}" if s.class_ref and s.section
+                    else (s.class_ref.name if s.class_ref else '')
+                ),
+            }
+            for s in Student.objects
+                .filter(status='active', date_of_birth__month=today.month, date_of_birth__day=today.day)
+                .select_related('class_ref', 'section')
+        ]
+        staff_birthdays = [
+            {
+                'name': st.full_name,
+                'designation': st.designation.name if st.designation else '',
+            }
+            for st in Staff.objects
+                .filter(status='active', date_of_birth__month=today.month, date_of_birth__day=today.day)
+                .select_related('designation')
+        ]
+
+        # --- Absent / leave students today ---
+        absent_students_list = [
+            {
+                'name': att.student.full_name,
+                'class_section': (
+                    f"{att.student.class_ref.name}-{att.student.section.name}"
+                    if att.student.class_ref and att.student.section else ''
+                ),
+                'type': att.get_status_display(),
+            }
+            for att in StudentAttendance.objects
+                .filter(date=today, status__in=['absent', 'leave'])
+                .select_related('student', 'student__class_ref', 'student__section')
+        ]
+
+        # --- Per-section grids (attendance + homework status) ---
+        sec_counts = {}
+        for row in (
+            StudentAttendance.objects.filter(date=today)
+            .values('student__section')
+            .annotate(total=Count('id'), present=Count('id', filter=Q(status='present')))
+        ):
+            sec_counts[row['student__section']] = row
+
+        class_attendance_status = []
+        class_hw_status = []
+        for sec in Section.objects.select_related('class_ref').order_by('class_ref__order', 'name'):
+            label = f"{sec.class_ref.name}-{sec.name}"
+            row = sec_counts.get(sec.id)
+            class_attendance_status.append({
+                'label': label,
+                'marked': bool(row),
+                'total': row['total'] if row else 0,
+                'present': row['present'] if row else 0,
+            })
+            # No homework module yet — grid renders as "not marked"
+            class_hw_status.append({'label': label, 'marked': False})
+
+        return Response({
+            'total_students': total_students,
+            'total_staff': total_staff,
+            'present_today': present_students,
+            'absent_today': absent_students,
+            'present_staff_today': present_staff,
+            'class_attendance': list(class_attendance),
+            'absent_staff': absent_staff,
+            'today_leave_requests': today_leave_requests,
+            'student_birthdays': student_birthdays,
+            'staff_birthdays': staff_birthdays,
+            'absent_students': absent_students_list,
+            'class_attendance_status': class_attendance_status,
+            'class_hw_status': class_hw_status,
+        })

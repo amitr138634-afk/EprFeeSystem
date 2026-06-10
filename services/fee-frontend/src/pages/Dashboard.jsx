@@ -40,7 +40,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Today's Collection by Mode */}
         <div className="card p-5">
-          <h3 className="font-semibold text-gray-800 mb-4">Today's Collection by Mode</h3>
+          <h3 className="font-semibold text-gray-800 mb-4">Today&apos;s Collection by Mode</h3>
           {dailyReport?.by_payment_mode?.length > 0 ? (
             <div className="space-y-3">
               {dailyReport.by_payment_mode.map(mode => (

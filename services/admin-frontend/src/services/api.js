@@ -44,6 +44,12 @@ export const authApi = {
   logout: (refresh) => api.post('/auth/logout/', { refresh }),
   profile: () => api.get('/auth/profile/'),
   changePassword: (data) => api.post('/auth/change-password/', data),
+  // Super Admin → school admin management
+  listSchoolAdmins: (params) => api.get('/auth/school-admins/', { params }),
+  createSchoolAdmin: (data) => api.post('/auth/school-admins/', data),
+  getSchoolAdmin: (id) => api.get(`/auth/school-admins/${id}/`),
+  updateSchoolAdmin: (id, data) => api.patch(`/auth/school-admins/${id}/`, data),
+  deleteSchoolAdmin: (id) => api.delete(`/auth/school-admins/${id}/`),
 }
 
 export const schoolApi = {

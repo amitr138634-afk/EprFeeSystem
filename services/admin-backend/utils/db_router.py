@@ -1,6 +1,9 @@
 from utils.tenant import get_current_tenant
 
-CENTRAL_APPS = {'accounts', 'schools', 'admin', 'auth', 'contenttypes', 'sessions'}
+CENTRAL_APPS = {
+    'accounts', 'schools', 'admin', 'auth', 'contenttypes', 'sessions',
+    'token_blacklist',
+}
 
 
 class TenantDatabaseRouter:

@@ -18,14 +18,18 @@ class LoginView(TokenObtainPairView):
 
 
 class LogoutView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def post(self, request):
         try:
             refresh_token = request.data.get('refresh')
+            if not refresh_token:
+                return Response({'detail': 'refresh token is required.'}, status=status.HTTP_400_BAD_REQUEST)
             token = RefreshToken(refresh_token)
             token.blacklist()
             return Response({'detail': 'Successfully logged out.'})
-        except Exception:
-            return Response({'detail': 'Invalid token.'}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({'detail': f'Invalid token: {e}'}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class ProfileView(generics.RetrieveUpdateAPIView):
@@ -58,8 +62,18 @@ class UserListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         if self.request.user.role == 'super_admin':
-            return User.objects.all()
-        return User.objects.filter(school_id=self.request.user.school_id)
+            return User.objects.all().order_by('-created_at')
+        return User.objects.filter(school_id=self.request.user.school_id).order_by('-created_at')
+
+    def perform_create(self, serializer):
+        if self.request.user.role == 'school_admin':
+            requested_role = serializer.validated_data.get('role', 'staff')
+            if requested_role == 'super_admin':
+                from rest_framework.exceptions import PermissionDenied
+                raise PermissionDenied('Cannot create super admin.')
+            serializer.save(school_id=self.request.user.school_id)
+        else:
+            serializer.save()
 
 
 class UserDetailView(generics.RetrieveUpdateDestroyAPIView):

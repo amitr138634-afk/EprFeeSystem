@@ -42,6 +42,11 @@ class CreateUserSerializer(serializers.ModelSerializer):
         model = User
         fields = ['email', 'first_name', 'last_name', 'role', 'school_id', 'phone', 'password']
 
+    def validate_role(self, value):
+        if value == 'super_admin':
+            raise serializers.ValidationError('Cannot assign super_admin role via this endpoint.')
+        return value
+
     def create(self, validated_data):
         password = validated_data.pop('password')
         user = User(**validated_data)

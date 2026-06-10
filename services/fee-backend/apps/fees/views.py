@@ -185,7 +185,6 @@ class FeeDefaulterView(APIView):
     def get(self, request):
         params = request.query_params
         session_year = params.get('session_year', '')
-        class_id = params.get('class_id')
         paid_student_ids = FeeReceipt.objects.filter(
             session_year=session_year, status='paid'
         ).values_list('student_id', flat=True).distinct()

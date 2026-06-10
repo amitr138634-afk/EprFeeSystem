@@ -105,7 +105,7 @@ export default function Dashboard() {
         {/* Today's Leave Requests */}
         <div className="card p-5">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-gray-800">Today's Leave Request</h3>
+            <h3 className="font-semibold text-gray-800">Today&apos;s Leave Request</h3>
             <button className="text-xs bg-red-500 text-white px-3 py-1 rounded-full hover:bg-red-600">View All</button>
           </div>
           <p className="text-center text-gray-400 text-sm py-6">No leave requests</p>
@@ -114,7 +114,7 @@ export default function Dashboard() {
         {/* Today's Birthday */}
         <div className="card p-5">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-gray-800">Today's Birthday</h3>
+            <h3 className="font-semibold text-gray-800">Today&apos;s Birthday</h3>
             <button className="text-xs bg-red-500 text-white px-3 py-1 rounded-full hover:bg-red-600">View All</button>
           </div>
           <div className="space-y-2">
@@ -136,7 +136,7 @@ export default function Dashboard() {
         {/* Staff Birthday */}
         <div className="card p-5">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-gray-800">Today's Staff Birthday</h3>
+            <h3 className="font-semibold text-gray-800">Today&apos;s Staff Birthday</h3>
             <button className="text-xs bg-red-500 text-white px-3 py-1 rounded-full hover:bg-red-600">View All</button>
           </div>
           <p className="text-center text-gray-400 text-sm py-6">No staff birthdays</p>
@@ -147,7 +147,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <div className="card p-5">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-gray-800">Today's Class Attendance Status</h3>
+          <h3 className="font-semibold text-gray-800">Today&apos;s Class Attendance Status</h3>
             <button className="text-xs bg-red-500 text-white px-3 py-1 rounded-full hover:bg-red-600">View All</button>
           </div>
           {attendanceSummary && attendanceSummary.length > 0 ? (
@@ -159,7 +159,7 @@ export default function Dashboard() {
 
         <div className="card p-5">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-gray-800">Today's Class HW Status</h3>
+            <h3 className="font-semibold text-gray-800">Today&apos;s Class HW Status</h3>
             <button className="text-xs bg-red-500 text-white px-3 py-1 rounded-full hover:bg-red-600">View All</button>
           </div>
           <p className="text-center text-gray-400 text-sm py-4">No homework data</p>

@@ -32,8 +32,9 @@ const SCHOOL_ADMIN_NAV = [
   {
     label: 'Students',
     items: [
-      { label: 'Student List',     to: '/students' },
-      { label: 'Student Strength', to: '/students/strength' },
+      { label: 'Student List',            to: '/students' },
+      { label: 'Student Strength',        to: '/students/strength' },
+      { label: 'Class & Section Master',  to: '/students/classes' },
     ],
   },
   {

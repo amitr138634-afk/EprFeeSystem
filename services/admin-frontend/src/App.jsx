@@ -15,6 +15,7 @@ import CreateAdmin from './pages/superadmin/CreateAdmin'
 // School Admin pages
 import StudentList from './pages/students/StudentList'
 import StudentStrength from './pages/students/StudentStrength'
+import ClassMaster from './pages/students/ClassMaster'
 import StaffList from './pages/staff/StaffList'
 import DepartmentMaster from './pages/staff/DepartmentMaster'
 import StudentAttendance from './pages/attendance/StudentAttendance'
@@ -64,6 +65,7 @@ export default function App() {
         {/* ────────── School Admin / Staff ────────── */}
         <Route path="students"                    element={<PrivateRoute roles={['school_admin','staff','teacher']}><StudentList /></PrivateRoute>} />
         <Route path="students/strength"           element={<PrivateRoute roles={['school_admin','staff','teacher']}><StudentStrength /></PrivateRoute>} />
+        <Route path="students/classes"            element={<PrivateRoute roles={['school_admin']}><ClassMaster /></PrivateRoute>} />
         <Route path="staff"                       element={<PrivateRoute roles={['school_admin','staff']}><StaffList /></PrivateRoute>} />
         <Route path="staff/departments"           element={<PrivateRoute roles={['school_admin']}><DepartmentMaster /></PrivateRoute>} />
         <Route path="attendance/students"         element={<PrivateRoute roles={['school_admin','staff','teacher']}><StudentAttendance /></PrivateRoute>} />

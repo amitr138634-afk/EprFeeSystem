@@ -3,8 +3,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import {
   Plus, Search, Eye, Edit, Trash2, X, Upload, Download,
-  FileSpreadsheet, CheckCircle2, AlertCircle, Loader2
+  FileSpreadsheet, CheckCircle2, AlertCircle, Loader2, ExternalLink
 } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import DataTable from '../../components/common/DataTable'
 import { studentApi } from '../../services/api'
@@ -100,6 +101,22 @@ function AddStudentModal({ onClose, onCreated }) {
           {/* Academic */}
           <div>
             <p className="text-sm font-semibold text-gray-700 mb-3 pb-1 border-b border-gray-100">Academic Details</p>
+
+            {/* Hint when no classes exist */}
+            {classes && classes.length === 0 && (
+              <div className="mb-3 flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
+                <AlertCircle size={15} className="text-amber-500 shrink-0" />
+                No classes set up yet.{' '}
+                <Link
+                  to="/students/classes"
+                  onClick={onClose}
+                  className="inline-flex items-center gap-1 font-semibold text-blue-600 hover:underline"
+                >
+                  Go to Class &amp; Section Master <ExternalLink size={12} />
+                </Link>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="form-label">Class <span className="text-red-500">*</span></label>

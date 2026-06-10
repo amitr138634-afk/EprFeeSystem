@@ -13,6 +13,12 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         token['full_name'] = user.full_name
         if user.school_id:
             token['school_id'] = user.school_id
+            try:
+                from apps.schools.models import School
+                school = School.objects.get(pk=user.school_id)
+                token['school_name'] = school.name
+            except Exception:
+                token['school_name'] = ''
         return token
 
     def validate(self, attrs):
@@ -28,6 +34,13 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         data = super().validate(attrs)
         if not self.user.is_active:
             raise serializers.ValidationError({'detail': 'Account is inactive.'})
+        school_name = ''
+        if self.user.school_id:
+            try:
+                from apps.schools.models import School
+                school_name = School.objects.get(pk=self.user.school_id).name
+            except Exception:
+                pass
         data['user'] = {
             'id': self.user.id,
             'email': self.user.email,
@@ -35,6 +48,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             'full_name': self.user.full_name,
             'role': self.user.role,
             'school_id': self.user.school_id,
+            'school_name': school_name,
         }
         return data
 

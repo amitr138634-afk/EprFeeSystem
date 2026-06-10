@@ -169,11 +169,13 @@ export default function TopNav() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 grid grid-cols-3 items-center h-14">
         {/* Left — brand */}
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center">
+          <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center shrink-0">
             <Building2 size={18} className="text-white" />
           </div>
-          <div className="leading-tight">
-            <p className="text-sm font-bold text-gray-800">School ERP</p>
+          <div className="leading-tight min-w-0">
+            <p className="text-sm font-bold text-gray-800 truncate">
+              {user?.role === 'super_admin' ? 'School ERP' : (user?.school_name || 'School ERP')}
+            </p>
             <p className="text-[10px] text-gray-500 uppercase tracking-wide">
               {user?.role === 'super_admin' ? 'Super Admin' : 'Admin Panel'}
             </p>

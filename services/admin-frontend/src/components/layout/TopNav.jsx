@@ -55,6 +55,14 @@ const SCHOOL_ADMIN_NAV = [
     ],
   },
   {
+    label: 'Academics',
+    items: [
+      { label: 'Grade Scale',        to: '/academics/grade-scale' },
+      { label: 'Calculation Master', to: '/academics/calculation' },
+      { label: 'Class Results',      to: '/academics/results' },
+    ],
+  },
+  {
     label: 'Timetable',
     items: [
       { label: 'Subjects',           to: '/timetable/subjects' },

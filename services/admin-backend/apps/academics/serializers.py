@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import ExamType, SubjectAllocation, StudentSubject, Marks, RemarkMaster, SignatureMaster
+from .models import ExamType, SubjectAllocation, StudentSubject, Marks, RemarkMaster, SignatureMaster, GradeScale
 
 
 class ExamTypeSerializer(serializers.ModelSerializer):
@@ -48,4 +48,10 @@ class RemarkMasterSerializer(serializers.ModelSerializer):
 class SignatureMasterSerializer(serializers.ModelSerializer):
     class Meta:
         model = SignatureMaster
+        fields = '__all__'
+
+
+class GradeScaleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = GradeScale
         fields = '__all__'

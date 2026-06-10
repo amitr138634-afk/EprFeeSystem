@@ -155,6 +155,18 @@ export const academicsApi = {
   updateRemark:          (id, data) => api.patch(`/academics/remarks/${id}/`, data),
   deleteRemark:          (id) => api.delete(`/academics/remarks/${id}/`),
   studentSubjects:       (params) => api.get('/academics/student-subjects/', { params }),
+  /* Academics — grade scale */
+  gradeScale:            () => api.get('/academics/grade-scale/'),
+  createGradeScale:      (data) => api.post('/academics/grade-scale/', data),
+  updateGradeScale:      (id, data) => api.patch(`/academics/grade-scale/${id}/`, data),
+  deleteGradeScale:      (id) => api.delete(`/academics/grade-scale/${id}/`),
+  /* Academics — calculation master (exam weightages) */
+  calculation:           (params) => api.get('/academics/calculation/', { params }),
+  updateCalculation:     (data) => api.patch('/academics/calculation/', data),
+  /* Academics — class results */
+  classResults:          (params) => api.get('/academics/results/', { params }),
+  /* Report card */
+  reportCard:            (params) => api.get('/academics/report-card/', { params }),
 }
 
 export const adminApi = {

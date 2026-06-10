@@ -79,3 +79,19 @@ class SignatureMaster(models.Model):
 
     class Meta:
         db_table = 'signature_masters'
+
+
+class GradeScale(models.Model):
+    """Grade bands used to compute the overall grade shown on report cards."""
+    grade = models.CharField(max_length=5)
+    min_percent = models.DecimalField(max_digits=5, decimal_places=2)
+    max_percent = models.DecimalField(max_digits=5, decimal_places=2)
+    grade_point = models.DecimalField(max_digits=4, decimal_places=2, default=0)
+    remark = models.CharField(max_length=100, blank=True)
+
+    class Meta:
+        db_table = 'grade_scales'
+        ordering = ['-min_percent']
+
+    def __str__(self):
+        return f'{self.grade} ({self.min_percent}-{self.max_percent}%)'

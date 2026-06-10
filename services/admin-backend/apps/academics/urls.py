@@ -12,4 +12,11 @@ urlpatterns = [
     path('remarks/<int:pk>/', views.RemarkMasterDetailView.as_view(), name='remark-detail'),
     path('signatures/', views.SignatureMasterListCreateView.as_view(), name='signature-list'),
     path('student-subjects/', views.StudentSubjectView.as_view(), name='student-subjects'),
+    # Academics
+    path('grade-scale/', views.GradeScaleListCreateView.as_view(), name='grade-scale-list'),
+    path('grade-scale/<int:pk>/', views.GradeScaleDetailView.as_view(), name='grade-scale-detail'),
+    path('calculation/', views.CalculationMasterView.as_view(), name='calculation-master'),
+    path('results/', views.ClassResultView.as_view(), name='class-results'),
+    # Report Card
+    path('report-card/', views.ReportCardView.as_view(), name='report-card'),
 ]

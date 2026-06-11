@@ -3,6 +3,20 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from .models import User
 
 
+def get_school_name(school_id):
+    """Resolve a school's display name from the shared central `schools` table."""
+    if not school_id:
+        return ''
+    try:
+        from django.db import connections
+        with connections['default'].cursor() as cur:
+            cur.execute('SELECT name FROM schools WHERE id = %s', [school_id])
+            row = cur.fetchone()
+            return row[0] if row else ''
+    except Exception:
+        return ''
+
+
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     @classmethod
     def get_token(cls, user):
@@ -12,6 +26,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         token['full_name'] = user.full_name
         if user.school_id:
             token['school_id'] = user.school_id
+            token['school_name'] = get_school_name(user.school_id)
         return token
 
     def validate(self, attrs):
@@ -22,6 +37,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             'full_name': self.user.full_name,
             'role': self.user.role,
             'school_id': self.user.school_id,
+            'school_name': get_school_name(self.user.school_id),
         }
         return data
 

@@ -31,6 +31,7 @@ const useAuthStore = create((set) => ({
               full_name: payload.full_name,
               role: payload.role,
               school_id: payload.school_id,
+              school_name: payload.school_name || '',
             },
             isAuthenticated: true,
           })

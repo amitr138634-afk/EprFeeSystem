@@ -316,6 +316,8 @@ function NavEntry({ entry }) {
 export default function TopNav() {
   const { user, logout } = useAuthStore()
   const navigate = useNavigate()
+  const isSuperAdmin = user?.role === 'super_admin'
+  const brandName = isSuperAdmin ? 'Shyam Enterprise' : (user?.school_name || 'Shyam Enterprise')
 
   const handleLogout = async () => {
     try {
@@ -337,7 +339,7 @@ export default function TopNav() {
             <IndianRupee size={16} className="text-white" />
           </div>
           <div className="leading-tight">
-            <p className="text-sm font-bold text-gray-900 leading-none">Shyam ERP</p>
+            <p className="text-sm font-bold text-gray-900 leading-none">{brandName}</p>
             <p className="text-[10px] text-gray-400 leading-none mt-0.5">Fee Panel</p>
           </div>
         </div>

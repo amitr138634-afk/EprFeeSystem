@@ -248,8 +248,12 @@ export default function TopNav() {
             <GraduationCap size={16} className="text-white" />
           </div>
           <div className="leading-tight">
-            <p className="text-sm font-bold text-gray-900 leading-none">Shyam ERP</p>
-            <p className="text-[10px] text-gray-400 leading-none mt-0.5">Admin Panel</p>
+            <p className="text-sm font-bold text-gray-900 leading-none">
+              {isSuperAdmin ? 'Shyam Enterprise' : (user?.school_name || 'Shyam Enterprise')}
+            </p>
+            <p className="text-[10px] text-gray-400 leading-none mt-0.5">
+              {isSuperAdmin ? 'Super Admin' : 'Admin Panel'}
+            </p>
           </div>
         </div>
 

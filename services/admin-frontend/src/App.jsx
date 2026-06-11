@@ -60,6 +60,15 @@ import ClassAllocation from './pages/cce/ClassAllocation'
 import TeacherAllocation from './pages/cce/TeacherAllocation'
 import StudentSubjects from './pages/cce/StudentSubjects'
 
+// School Admin — Academics
+import GradeScale from './pages/academics/GradeScale'
+import CalculationMaster from './pages/academics/CalculationMaster'
+import ClassResults from './pages/academics/ClassResults'
+
+// School Admin — Report Card
+import GenerateReportCard from './pages/reportcard/GenerateReportCard'
+import BulkReportCards from './pages/reportcard/BulkReportCards'
+
 const SCHOOL_ROLES = ['school_admin', 'staff', 'teacher']
 const ADMIN_ONLY   = ['school_admin']
 
@@ -144,6 +153,15 @@ export default function App() {
         <Route path="cce/class-allocation"   element={<SR roles={ADMIN_ONLY}><ClassAllocation /></SR>} />
         <Route path="cce/teacher-allocation" element={<SR roles={ADMIN_ONLY}><TeacherAllocation /></SR>} />
         <Route path="cce/student-subjects"   element={<SR roles={ADMIN_ONLY}><StudentSubjects /></SR>} />
+
+        {/* ── Academics ────────────────────────────────────────────── */}
+        <Route path="academics/grade-scale" element={<SR roles={ADMIN_ONLY}><GradeScale /></SR>} />
+        <Route path="academics/calculation" element={<SR roles={ADMIN_ONLY}><CalculationMaster /></SR>} />
+        <Route path="academics/results"     element={<SR roles={SCHOOL_ROLES}><ClassResults /></SR>} />
+
+        {/* ── Report Card ──────────────────────────────────────────── */}
+        <Route path="report-card/generate" element={<SR roles={SCHOOL_ROLES}><GenerateReportCard /></SR>} />
+        <Route path="report-card/bulk"     element={<SR roles={SCHOOL_ROLES}><BulkReportCards /></SR>} />
       </Route>
     </Routes>
   )

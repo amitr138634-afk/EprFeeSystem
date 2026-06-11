@@ -108,3 +108,13 @@
   .progress-bar  { @apply h-1.5 rounded-full bg-gray-200 overflow-hidden; }
   .progress-fill { @apply h-full rounded-full transition-all duration-500; }
 }
+
+/* ── Print: report cards ───────────────────────────────────────────── */
+@media print {
+  header { display: none !important; }
+  body { background: #fff !important; }
+  .report-card { box-shadow: none !important; }
+  .report-card-page { page-break-after: always; break-after: page; }
+  .report-card-page:last-child { page-break-after: auto; break-after: auto; }
+  .report-card { break-inside: avoid; }
+}

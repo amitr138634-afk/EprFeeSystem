@@ -98,6 +98,13 @@ const SCHOOL_ADMIN_NAV = [
       },
     ],
   },
+  {
+    label: 'Report Card',
+    items: [
+      { label: 'Generate Report Card', to: '/report-card/generate' },
+      { label: 'Bulk Report Cards',    to: '/report-card/bulk' },
+    ],
+  },
 ]
 
 const SUPER_ADMIN_NAV = [

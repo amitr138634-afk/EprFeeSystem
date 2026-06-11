@@ -1,11 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
 import { NavLink } from 'react-router-dom'
 import {
-  AreaChart, Area, BarChart, Bar, XAxis, YAxis,
+  BarChart, Bar, XAxis, YAxis,
   CartesianGrid, Tooltip, ResponsiveContainer, Cell
 } from 'recharts'
 import {
-  IndianRupee, Receipt, AlertTriangle, TrendingUp,
+  IndianRupee, Receipt, TrendingUp, CalendarRange,
   ChevronRight, CalendarDays,
   CreditCard, Wallet, Banknote, Smartphone
 } from 'lucide-react'
@@ -20,15 +20,6 @@ function greeting() {
   return 'Good evening'
 }
 
-const MOCK_WEEKLY = [
-  { day: 'Mon', amount: 42000 },
-  { day: 'Tue', amount: 58000 },
-  { day: 'Wed', amount: 37000 },
-  { day: 'Thu', amount: 71000 },
-  { day: 'Fri', amount: 55000 },
-  { day: 'Sat', amount: 28000 },
-]
-
 const MODE_ICON  = { cash: Banknote, cheque: CreditCard, online: Wallet, upi: Smartphone, card: CreditCard }
 const MODE_COLOR = {
   cash:   'bg-green-600',
@@ -36,6 +27,10 @@ const MODE_COLOR = {
   online: 'bg-purple-600',
   upi:    'bg-teal-600',
   card:   'bg-indigo-600',
+}
+
+function inr(v) {
+  return `₹${Number(v || 0).toLocaleString('en-IN')}`
 }
 
 function StatCard({ title, value, sub, icon: Icon, color, loading }) {
@@ -72,18 +67,39 @@ const BAR_COLORS = ['#16a34a', '#2563eb', '#7c3aed', '#0891b2', '#d97706']
 
 export default function Dashboard() {
   const { user } = useAuthStore()
-  const today = format(new Date(), 'yyyy-MM-dd')
-  const todayLabel = format(new Date(), 'dd MMM yyyy, EEEE')
+  const now = new Date()
+  const today = format(now, 'yyyy-MM-dd')
+  const todayLabel = format(now, 'dd MMM yyyy, EEEE')
+  const monthLabel = format(now, 'MMMM yyyy')
 
   const { data: dailyReport, isLoading } = useQuery({
     queryKey: ['daily-report', today],
     queryFn: () => feeApi.dailyReport({ date: today }).then(r => r.data),
   })
 
-  const totalCollection = dailyReport
-    ? `₹${Number(dailyReport.total_amount || 0).toLocaleString('en-IN')}`
-    : null
-  const receiptsToday = dailyReport?.total_receipts ?? null
+  const { data: monthlyReport, isLoading: loadingMonth } = useQuery({
+    queryKey: ['monthly-report', now.getMonth() + 1, now.getFullYear()],
+    queryFn: () => feeApi.monthlyReport({ month: now.getMonth() + 1, year: now.getFullYear() }).then(r => r.data),
+  })
+
+  const { data: receipts = [], isLoading: loadingReceipts } = useQuery({
+    queryKey: ['recent-receipts'],
+    queryFn: () => feeApi.receipts().then(r => r.data.results ?? r.data),
+  })
+
+  const totalCollection = dailyReport ? inr(dailyReport.total_amount) : null
+  const receiptsToday   = dailyReport?.total_receipts ?? null
+  const monthCollection = monthlyReport ? inr(monthlyReport.total_amount) : null
+  const monthReceipts   = monthlyReport?.total_receipts ?? null
+
+  const byClass = (monthlyReport?.by_class || []).map(c => ({
+    name: c.class_name || '—',
+    amount: Number(c.amount || 0),
+  }))
+
+  const recent = [...receipts]
+    .sort((a, b) => (b.id || 0) - (a.id || 0))
+    .slice(0, 6)
 
   return (
     <div className="space-y-6">
@@ -110,47 +126,52 @@ export default function Dashboard() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard title="Today's Collection" value={totalCollection}  sub={`${receiptsToday ?? 0} receipts`} icon={IndianRupee}   color="green"  loading={isLoading} />
-        <StatCard title="Receipts Today"     value={receiptsToday}   sub="Transactions"                     icon={Receipt}        color="blue"   loading={isLoading} />
-        <StatCard title="Fee Defaulters"     value="—"               sub="Pending dues"                     icon={AlertTriangle}  color="amber"  loading={false} />
-        <StatCard title="Monthly Collection" value="—"               sub="This month"                       icon={TrendingUp}     color="purple" loading={false} />
+        <StatCard title="Today's Collection"  value={totalCollection} sub={`${receiptsToday ?? 0} receipts`} icon={IndianRupee}  color="green"  loading={isLoading} />
+        <StatCard title="Receipts Today"      value={receiptsToday}   sub="Transactions"                    icon={Receipt}       color="blue"   loading={isLoading} />
+        <StatCard title="This Month"          value={monthCollection} sub={monthLabel}                      icon={TrendingUp}    color="purple" loading={loadingMonth} />
+        <StatCard title="Month Receipts"      value={monthReceipts}   sub="Paid this month"                 icon={CalendarRange} color="amber"  loading={loadingMonth} />
       </div>
 
       {/* Charts row */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
 
-        {/* Weekly collection trend */}
+        {/* Monthly collection by class — real data */}
         <div className="lg:col-span-3 card p-5">
           <div className="flex items-center justify-between mb-5">
             <div>
-              <h3 className="text-sm font-bold text-gray-900">Weekly Fees Trend</h3>
-              <p className="text-xs text-gray-400 mt-0.5">Fee collected this week (₹)</p>
+              <h3 className="text-sm font-bold text-gray-900">Collection by Class</h3>
+              <p className="text-xs text-gray-400 mt-0.5">Fees collected in {monthLabel} (₹)</p>
             </div>
             <TrendingUp size={16} className="text-gray-300" />
           </div>
-          <ResponsiveContainer width="100%" height={190}>
-            <AreaChart data={MOCK_WEEKLY} margin={{ top: 0, right: 0, left: -15, bottom: 0 }}>
-              <defs>
-                <linearGradient id="gFee" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%"  stopColor="#16a34a" stopOpacity={0.15} />
-                  <stop offset="95%" stopColor="#16a34a" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-              <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false}
-                tickFormatter={v => `₹${(v/1000).toFixed(0)}k`} />
-              <Tooltip
-                contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 12 }}
-                formatter={v => [`₹${Number(v).toLocaleString('en-IN')}`, 'Collection']}
-                cursor={{ stroke: '#e2e8f0' }}
-              />
-              <Area type="monotone" dataKey="amount" stroke="#16a34a" strokeWidth={2} fill="url(#gFee)" name="Collection" />
-            </AreaChart>
-          </ResponsiveContainer>
+          {loadingMonth ? (
+            <div className="h-[190px] bg-gray-50 rounded animate-pulse" />
+          ) : byClass.length > 0 ? (
+            <ResponsiveContainer width="100%" height={190}>
+              <BarChart data={byClass} margin={{ top: 0, right: 0, left: -15, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false}
+                  tickFormatter={v => `₹${(v / 1000).toFixed(0)}k`} />
+                <Tooltip
+                  contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 12 }}
+                  formatter={v => [inr(v), 'Collected']}
+                  cursor={{ fill: '#f8fafc' }}
+                />
+                <Bar dataKey="amount" radius={[4, 4, 0, 0]} name="Collected">
+                  {byClass.map((_, i) => <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-[190px] flex flex-col items-center justify-center text-gray-300 gap-2">
+              <IndianRupee size={28} />
+              <p className="text-sm">No collection this month</p>
+            </div>
+          )}
         </div>
 
-        {/* Payment mode breakdown */}
+        {/* Payment mode breakdown — today */}
         <div className="lg:col-span-2 card p-5">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-bold text-gray-900">Today by Mode</h3>
@@ -176,9 +197,7 @@ export default function Dashboard() {
                       <p className="text-sm font-medium text-gray-800 capitalize">{mode.payment_mode}</p>
                       <p className="text-xs text-gray-400">{mode.count} receipt{mode.count !== 1 ? 's' : ''}</p>
                     </div>
-                    <p className="font-semibold text-gray-900 text-sm">
-                      ₹{Number(mode.amount || 0).toLocaleString('en-IN')}
-                    </p>
+                    <p className="font-semibold text-gray-900 text-sm">{inr(mode.amount)}</p>
                   </div>
                 )
               })}
@@ -195,7 +214,7 @@ export default function Dashboard() {
       {/* Bottom row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
-        {/* Recent receipts placeholder */}
+        {/* Recent receipts — real data */}
         <div className="lg:col-span-2 table-container">
           <div className="flex items-center justify-between p-4 border-b border-gray-100">
             <h3 className="text-sm font-bold text-gray-900">Recent Receipts</h3>
@@ -214,18 +233,28 @@ export default function Dashboard() {
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <td colSpan={5} className="text-center py-10 text-gray-400 text-sm">
-                  No receipts today
-                </td>
-              </tr>
+              {loadingReceipts ? (
+                <tr><td colSpan={5} className="text-center py-10 text-gray-400 text-sm">Loading…</td></tr>
+              ) : recent.length > 0 ? (
+                recent.map(r => (
+                  <tr key={r.id}>
+                    <td className="font-mono text-gray-600">{r.receipt_no}</td>
+                    <td className="font-medium text-gray-800">{r.student_name}</td>
+                    <td className="text-gray-500">{r.class_name}{r.section_name ? `-${r.section_name}` : ''}</td>
+                    <td className="capitalize text-gray-500">{r.payment_mode}</td>
+                    <td className="text-right font-semibold text-gray-900">{inr(r.net_amount)}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr><td colSpan={5} className="text-center py-10 text-gray-400 text-sm">No receipts yet</td></tr>
+              )}
             </tbody>
           </table>
         </div>
 
-        {/* Bar chart — fee by mode */}
+        {/* Today — collection by mode bar */}
         <div className="card p-5">
-          <h3 className="text-sm font-bold text-gray-900 mb-4">Collection by Mode</h3>
+          <h3 className="text-sm font-bold text-gray-900 mb-4">Today by Mode</h3>
           {dailyReport?.by_payment_mode?.length > 0 ? (
             <ResponsiveContainer width="100%" height={220}>
               <BarChart
@@ -237,7 +266,7 @@ export default function Dashboard() {
                 <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false}
                   tickFormatter={v => `₹${(v/1000).toFixed(0)}k`} />
                 <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 12 }}
-                  formatter={v => [`₹${Number(v).toLocaleString('en-IN')}`, 'Amount']} />
+                  formatter={v => [inr(v), 'Amount']} />
                 <Bar dataKey="amount" radius={[4,4,0,0]} name="Amount">
                   {dailyReport.by_payment_mode.map((_, i) => (
                     <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />

@@ -1,9 +1,17 @@
 from rest_framework import serializers
 from .models import (
-    FeeHead, FeeStructure, DiscountHead, StudentFeeDiscount,
+    FeeHead, FeeAmount, FeeStructure, DiscountHead, StudentFeeDiscount,
     FeeReceipt, FeeReceiptItem, AdditionalFee, DepositFee,
-    BookSet, Book, BookSale, UniformItem, UniformSale, UniformSaleItem
+    BookSet, Book, BookSale, UniformItem, UniformSale, UniformSaleItem,
+    AdmissionQuery
 )
+
+
+class FeeAmountSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FeeAmount
+        fields = '__all__'
+        read_only_fields = ['id', 'created_at', 'updated_at']
 
 
 class FeeHeadSerializer(serializers.ModelSerializer):
@@ -131,3 +139,60 @@ class UniformSaleSerializer(serializers.ModelSerializer):
     class Meta:
         model = UniformSale
         fields = '__all__'
+
+
+class AdmissionQuerySerializer(serializers.ModelSerializer):
+    fee_structure = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = AdmissionQuery
+        fields = '__all__'
+        read_only_fields = ['id', 'query_date', 'updated_at', 'created_by']
+    
+    def get_fee_structure(self, obj):
+        """Get annual fee structure for selected class and type"""
+        from .models import FeeAmount
+        fee_amounts = FeeAmount.objects.filter(
+            class_id=obj.class_id,
+            type=obj.type,
+            session=obj.session
+        )
+        
+        result = []
+        for fee in fee_amounts:
+            annual_total = (
+                fee.april + fee.may + fee.june + fee.july + 
+                fee.august + fee.september + fee.october + fee.november + 
+                fee.december + fee.january + fee.february + fee.march
+            )
+            result.append({
+                'head_name': fee.head_name,
+                'frequency': fee.frequency,
+                'annual_amount': float(annual_total),
+                'monthly_breakdown': {
+                    'april': float(fee.april),
+                    'may': float(fee.may),
+                    'june': float(fee.june),
+                    'july': float(fee.july),
+                    'august': float(fee.august),
+                    'september': float(fee.september),
+                    'october': float(fee.october),
+                    'november': float(fee.november),
+                    'december': float(fee.december),
+                    'january': float(fee.january),
+                    'february': float(fee.february),
+                    'march': float(fee.march),
+                }
+            })
+        
+        return result
+
+
+class AdmissionQueryListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AdmissionQuery
+        fields = [
+            'id', 'student_name', 'father_name', 'father_mobile', 
+            'class_name', 'session', 'status', 'source_of_information',
+            'query_date', 'follow_up_date'
+        ]

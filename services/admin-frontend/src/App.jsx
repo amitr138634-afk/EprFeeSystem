@@ -19,8 +19,11 @@ import ClassMaster from './pages/students/ClassMaster'
 
 // School Admin — Staff
 import StaffList from './pages/staff/StaffList'
+import AddEditStaff from './pages/staff/AddEditStaff'
+import ViewStaff from './pages/staff/ViewStaff'
 import DepartmentMaster from './pages/staff/DepartmentMaster'
 import DesignationMaster from './pages/staff/DesignationMaster'
+import DeptDesignationMapping from './pages/staff/DeptDesignationMapping'
 
 // School Admin — Student Attendance
 import StudentAttendance from './pages/attendance/StudentAttendance'
@@ -112,9 +115,13 @@ export default function App() {
         <Route path="students/classes"  element={<SR roles={ADMIN_ONLY}><ClassMaster /></SR>} />
 
         {/* ── Staff ────────────────────────────────────────────────── */}
-        <Route path="staff"              element={<SR roles={SCHOOL_ROLES}><StaffList /></SR>} />
-        <Route path="staff/departments"  element={<SR roles={ADMIN_ONLY}><DepartmentMaster /></SR>} />
-        <Route path="staff/designations" element={<SR roles={ADMIN_ONLY}><DesignationMaster /></SR>} />
+        <Route path="staff"                          element={<SR roles={SCHOOL_ROLES}><StaffList /></SR>} />
+        <Route path="staff/add"                      element={<SR roles={ADMIN_ONLY}><AddEditStaff /></SR>} />
+        <Route path="staff/view/:id"                 element={<SR roles={SCHOOL_ROLES}><ViewStaff /></SR>} />
+        <Route path="staff/edit/:id"                 element={<SR roles={ADMIN_ONLY}><AddEditStaff /></SR>} />
+        <Route path="staff/departments"              element={<SR roles={ADMIN_ONLY}><DepartmentMaster /></SR>} />
+        <Route path="staff/designations"             element={<SR roles={ADMIN_ONLY}><DesignationMaster /></SR>} />
+        <Route path="staff/dept-designation-mapping" element={<SR roles={ADMIN_ONLY}><DeptDesignationMapping /></SR>} />
 
         {/* ── Student Attendance ───────────────────────────────────── */}
         <Route path="attendance/mark"       element={<SR roles={SCHOOL_ROLES}><StudentAttendance /></SR>} />

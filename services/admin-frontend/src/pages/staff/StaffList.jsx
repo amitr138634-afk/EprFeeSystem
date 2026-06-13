@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Plus, Search, Eye, Edit } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import DataTable from '../../components/common/DataTable'
 import { staffApi } from '../../services/api'
 
 export default function StaffList() {
+  const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
 
@@ -60,10 +62,22 @@ export default function StaffList() {
     {
       key: 'id',
       label: 'Actions',
-      render: (_, row) => (
+      render: (id, row) => (
         <div className="flex items-center gap-1">
-          <button className="p-1.5 hover:bg-blue-50 rounded text-blue-600"><Eye size={14} /></button>
-          <button className="p-1.5 hover:bg-green-50 rounded text-green-600"><Edit size={14} /></button>
+          <button 
+            onClick={() => navigate(`/staff/view/${id}`)} 
+            className="p-1.5 hover:bg-blue-50 rounded text-blue-600"
+            title="View"
+          >
+            <Eye size={14} />
+          </button>
+          <button 
+            onClick={() => navigate(`/staff/edit/${id}`)} 
+            className="p-1.5 hover:bg-green-50 rounded text-green-600"
+            title="Edit"
+          >
+            <Edit size={14} />
+          </button>
         </div>
       ),
     },
@@ -76,7 +90,10 @@ export default function StaffList() {
           <h1 className="text-xl font-bold text-gray-800">Staff List</h1>
           <p className="text-sm text-gray-500">Manage all staff members</p>
         </div>
-        <button className="btn-primary flex items-center gap-2">
+        <button 
+          onClick={() => navigate('/staff/add')} 
+          className="btn-primary flex items-center gap-2"
+        >
           <Plus size={16} /> Add Staff
         </button>
       </div>

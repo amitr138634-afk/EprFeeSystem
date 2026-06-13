@@ -1,10 +1,11 @@
 from rest_framework import generics, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from .models import Staff, Department, Designation, Shift, LeaveType, LeaveRequest
+from .models import Staff, Department, Designation, DepartmentDesignation, Shift, LeaveType, LeaveRequest
 from .serializers import (
     StaffSerializer, StaffListSerializer, DepartmentSerializer,
-    DesignationSerializer, ShiftSerializer, LeaveTypeSerializer, LeaveRequestSerializer
+    DesignationSerializer, DepartmentDesignationSerializer,
+    ShiftSerializer, LeaveTypeSerializer, LeaveRequestSerializer
 )
 from utils.permissions import IsSchoolAdmin, IsSchoolStaff
 
@@ -12,6 +13,18 @@ from utils.permissions import IsSchoolAdmin, IsSchoolStaff
 class DepartmentListCreateView(generics.ListCreateAPIView):
     serializer_class = DepartmentSerializer
     permission_classes = [IsSchoolStaff]
+    
+    def get_queryset(self):
+        qs = Department.objects.all()
+        status = self.request.query_params.get('status')
+        if status:
+            qs = qs.filter(status=status)
+        return qs
+
+
+class DepartmentDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = DepartmentSerializer
+    permission_classes = [IsSchoolAdmin]
     queryset = Department.objects.all()
 
 
@@ -21,10 +34,37 @@ class DesignationListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         qs = Designation.objects.all()
+        status = self.request.query_params.get('status')
+        if status:
+            qs = qs.filter(status=status)
+        return qs
+
+
+class DesignationDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = DesignationSerializer
+    permission_classes = [IsSchoolAdmin]
+    queryset = Designation.objects.all()
+
+
+class DepartmentDesignationListCreateView(generics.ListCreateAPIView):
+    serializer_class = DepartmentDesignationSerializer
+    permission_classes = [IsSchoolStaff]
+
+    def get_queryset(self):
+        qs = DepartmentDesignation.objects.select_related('department').prefetch_related('designations')
         dept_id = self.request.query_params.get('department_id')
+        status = self.request.query_params.get('status')
         if dept_id:
             qs = qs.filter(department_id=dept_id)
+        if status:
+            qs = qs.filter(status=status)
         return qs
+
+
+class DepartmentDesignationDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = DepartmentDesignationSerializer
+    permission_classes = [IsSchoolAdmin]
+    queryset = DepartmentDesignation.objects.all()
 
 
 class StaffListCreateView(generics.ListCreateAPIView):

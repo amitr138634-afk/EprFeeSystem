@@ -22,6 +22,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     def get_token(cls, user):
         token = super().get_token(user)
         token['email'] = user.email
+        token['username'] = user.username or ''
         token['role'] = user.role
         token['full_name'] = user.full_name
         if user.school_id:
@@ -30,10 +31,20 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         return token
 
     def validate(self, attrs):
+        # Allow login by username (no @) or email
+        login_id = attrs.get('email', '')
+        if login_id and '@' not in login_id:
+            try:
+                user_obj = User.objects.get(username=login_id)
+                attrs['email'] = user_obj.email
+            except User.DoesNotExist:
+                pass
+
         data = super().validate(attrs)
         data['user'] = {
             'id': self.user.id,
             'email': self.user.email,
+            'username': self.user.username or '',
             'full_name': self.user.full_name,
             'role': self.user.role,
             'school_id': self.user.school_id,
@@ -47,7 +58,7 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['id', 'email', 'first_name', 'last_name', 'full_name', 'role', 'school_id', 'phone', 'is_active', 'created_at']
+        fields = ['id', 'email', 'username', 'first_name', 'last_name', 'full_name', 'role', 'school_id', 'phone', 'is_active', 'created_at']
         read_only_fields = ['id', 'created_at']
 
 

@@ -1,6 +1,6 @@
-import { NavLink, useNavigate, useLocation } from 'react-router-dom'
+import { NavLink, Link, useNavigate, useLocation } from 'react-router-dom'
 import { useState, useRef, useEffect } from 'react'
-import { LogOut, ChevronDown, GraduationCap } from 'lucide-react'
+import { LogOut, ChevronDown, GraduationCap, Plus } from 'lucide-react'
 import clsx from 'clsx'
 import toast from 'react-hot-toast'
 import useAuthStore from '../../store/authStore'
@@ -10,7 +10,6 @@ import { authApi } from '../../services/api'
  * Nav config
  * ──────────────────────────────────────────────────────────────────────── */
 const SCHOOL_ADMIN_NAV = [
-  { label: 'Dashboard', to: '/', end: true },
   {
     label: 'Students',
     items: [
@@ -22,9 +21,10 @@ const SCHOOL_ADMIN_NAV = [
   {
     label: 'Staff',
     items: [
-      { label: 'Staff List',         to: '/staff' },
-      { label: 'Department Master',  to: '/staff/departments' },
-      { label: 'Designation Master', to: '/staff/designations' },
+      { label: 'Staff List',                    to: '/staff' },
+      { label: 'Department Master',             to: '/staff/departments' },
+      { label: 'Designation Master',            to: '/staff/designations' },
+      { label: 'Department-Designation Master', to: '/staff/dept-designation-mapping' },
     ],
   },
   {
@@ -108,8 +108,20 @@ const SCHOOL_ADMIN_NAV = [
 ]
 
 const SUPER_ADMIN_NAV = [
-  { label: 'Dashboard', to: '/', end: true },
-  { label: 'Schools',   to: '/schools' },
+  {
+    label: 'School Details',
+    items: [
+      { label: 'All Schools', to: '/schools' },
+      { label: 'Add School',  to: '/schools/create', accent: true },
+    ],
+  },
+  {
+    label: 'Admin Details',
+    items: [
+      { label: 'All Admins', to: '/admins' },
+      { label: 'Add Admin',  to: '/admins/create', accent: true },
+    ],
+  },
 ]
 
 const COLS_CLASS = { 1: 'grid-cols-1', 2: 'grid-cols-2', 3: 'grid-cols-3' }
@@ -207,10 +219,15 @@ function NavEntry({ entry }) {
                   to={item.to}
                   onClick={() => setOpen(false)}
                   className={({ isActive }) => clsx(
-                    'flex items-center px-4 py-2 text-sm whitespace-nowrap transition-colors duration-100',
-                    isActive ? 'bg-green-50 text-green-700 font-medium' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    'flex items-center gap-2 px-4 py-2 text-sm whitespace-nowrap transition-colors duration-100',
+                    isActive
+                      ? 'bg-green-50 text-green-700 font-medium'
+                      : item.accent
+                        ? 'text-green-700 font-medium hover:bg-green-50'
+                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                   )}
                 >
+                  {item.accent && <Plus size={14} className="shrink-0" />}
                   {item.label}
                 </NavLink>
               ))}
@@ -242,8 +259,12 @@ export default function TopNav() {
     <header className="sticky top-0 z-30 bg-white border-b border-gray-200">
       <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
 
-        {/* Brand */}
-        <div className="flex items-center gap-2.5 shrink-0">
+        {/* Brand — click to go to Dashboard */}
+        <Link
+          to="/"
+          title="Go to Dashboard"
+          className="flex items-center gap-2.5 shrink-0 rounded-lg px-1 -mx-1 py-1 hover:bg-gray-50 transition-colors duration-150"
+        >
           <div className="w-8 h-8 rounded-lg bg-green-600 flex items-center justify-center">
             <GraduationCap size={16} className="text-white" />
           </div>
@@ -255,7 +276,7 @@ export default function TopNav() {
               {isSuperAdmin ? 'Super Admin' : 'Admin Panel'}
             </p>
           </div>
-        </div>
+        </Link>
 
         {/* Nav links */}
         <nav className="flex items-center justify-center gap-0.5 flex-1 flex-wrap">

@@ -1,4 +1,4 @@
-import { NavLink, useNavigate, useLocation } from 'react-router-dom'
+import { NavLink, Link, useNavigate, useLocation } from 'react-router-dom'
 import { useState, useRef, useEffect } from 'react'
 import { LogOut, ChevronDown, IndianRupee } from 'lucide-react'
 import clsx from 'clsx'
@@ -10,7 +10,6 @@ import { authApi } from '../../services/api'
  * Nav config
  * ──────────────────────────────────────────────────────────────────────── */
 const NAV = [
-  { label: 'Dashboard', to: '/', end: true },
   {
     label: 'Fee Management',
     cols: 3,
@@ -333,8 +332,12 @@ export default function TopNav() {
     <header className="sticky top-0 z-30 bg-white border-b border-gray-200">
       <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
 
-        {/* Brand */}
-        <div className="flex items-center gap-2.5 shrink-0">
+        {/* Brand — click to go to Dashboard */}
+        <Link
+          to="/"
+          title="Go to Dashboard"
+          className="flex items-center gap-2.5 shrink-0 rounded-lg px-1 -mx-1 py-1 hover:bg-gray-50 transition-colors duration-150"
+        >
           <div className="w-8 h-8 rounded-lg bg-green-600 flex items-center justify-center">
             <IndianRupee size={16} className="text-white" />
           </div>
@@ -342,7 +345,7 @@ export default function TopNav() {
             <p className="text-sm font-bold text-gray-900 leading-none">{brandName}</p>
             <p className="text-[10px] text-gray-400 leading-none mt-0.5">Fee Panel</p>
           </div>
-        </div>
+        </Link>
 
         {/* Nav links */}
         <nav className="flex items-center justify-center gap-0.5 flex-1 flex-wrap">

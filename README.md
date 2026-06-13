@@ -135,4 +135,5 @@ Authenticate by calling `POST /api/auth/login/` first and clicking **Authorize**
 * Added `seed_superadmin.py`, `01_create_central_db.sql`, `02_create_school_db_template.sql`, and `docs/DATABASE.md`.
 
 
-in super admin pannel dashbord and
+
+dashboard should be click on school then dashboard should come in school admin and fee admin page -> not on seerate dashboards button o anv bar

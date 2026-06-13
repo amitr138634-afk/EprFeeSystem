@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard'
 
 // Existing fee pages
 import FeeHeads from './pages/fees/FeeHeads'
+import DefineFeeAmount from './pages/fees/DefineFeeAmount'
 import FeeStructure from './pages/fees/FeeStructure'
 import PayFee from './pages/fees/PayFee'
 import ReceiptHistory from './pages/fees/ReceiptHistory'
@@ -18,8 +19,10 @@ import VehicleList from './pages/transport/VehicleList'
 import RouteList from './pages/transport/RouteList'
 import TransportStudents from './pages/transport/TransportStudents'
 import AdmissionList from './pages/students/AdmissionList'
+import AdmissionQuery from './pages/frontdesk/AdmissionQuery'
 import VisitorList from './pages/frontdesk/VisitorList'
 import Feedbacks from './pages/frontdesk/Feedbacks'
+import ClassMaster from './pages/masters/ClassMaster'
 
 // Placeholder for unbuilt pages
 import { Clock } from 'lucide-react'
@@ -52,7 +55,7 @@ export default function App() {
 
         {/* ── Fee Setup ──────────────────────────────────────────── */}
         <Route path="fees/heads"              element={<FeeHeads />} />
-        <Route path="fees/structure"          element={<FeeStructure />} />
+        <Route path="fees/structure"          element={<DefineFeeAmount />} />
         <Route path="fees/setup/teacher-extra"element={<CS title="Teacher Extra Heads" />} />
         <Route path="fees/setup/discounts"    element={<CS title="Configure Discount Heads" />} />
         <Route path="fees/setup/additional"   element={<CS title="Additional Fee Master" />} />
@@ -140,7 +143,7 @@ export default function App() {
         <Route path="frontdesk/setup/halfday"         element={<CS title="Halfday Approval Master" />} />
         <Route path="frontdesk/short-leaves/add"      element={<CS title="Add Short Leave" />} />
         <Route path="frontdesk/short-leaves/list"     element={<CS title="List Short Leaves" />} />
-        <Route path="frontdesk/enquiry/query"         element={<CS title="Admission Query" />} />
+        <Route path="frontdesk/enquiry/query"         element={<AdmissionQuery />} />
         <Route path="frontdesk/enquiry/dashboard"     element={<CS title="Enquiry Dashboard" />} />
         <Route path="frontdesk/enquiry/followup"      element={<CS title="Enquiry Follow Up" />} />
         <Route path="frontdesk/enquiry/test-subjects" element={<CS title="Test Subjects" />} />
@@ -148,6 +151,10 @@ export default function App() {
         <Route path="frontdesk/hrm/add"               element={<CS title="Add HRM" />} />
         <Route path="frontdesk/hrm/list"              element={<CS title="List HRM" />} />
         <Route path="frontdesk/hrm/letter"            element={<CS title="Add Letter" />} />
+
+        {/* ── Master ─────────────────────────────────────────────── */}
+        <Route path="masters/classes"                 element={<ClassMaster />} />
+        <Route path="masters/sections"                element={<CS title="Class Section Master" />} />
       </Route>
     </Routes>
   )

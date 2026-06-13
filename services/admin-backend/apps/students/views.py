@@ -4,10 +4,11 @@ from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser
 from django.db.models import Count, Q
 from django.http import HttpResponse
-from .models import Student, Class, Section
+from .models import Student, Class, Section, ClassMaster, ClassSectionMaster
 from .serializers import (
     StudentSerializer, StudentListSerializer, ClassSerializer,
-    SectionSerializer, ClassStrengthSerializer
+    SectionSerializer, ClassStrengthSerializer,
+    ClassMasterSerializer, ClassSectionMasterSerializer
 )
 from utils.permissions import IsSchoolAdmin, IsSchoolStaff
 
@@ -24,6 +25,29 @@ class ClassDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = ClassSerializer
     permission_classes = [IsSchoolAdmin]
     queryset = Class.objects.all()
+
+
+# ClassMaster views (from fee-backend tables)
+class ClassMasterListView(generics.ListAPIView):
+    """List classes from class_master table (fee-backend)"""
+    serializer_class = ClassMasterSerializer
+    permission_classes = [IsSchoolStaff]
+
+    def get_queryset(self):
+        return ClassMaster.objects.prefetch_related('sections').filter(status=True)
+
+
+class ClassSectionMasterListView(generics.ListAPIView):
+    """List sections from class_section_master table (fee-backend)"""
+    serializer_class = ClassSectionMasterSerializer
+    permission_classes = [IsSchoolStaff]
+
+    def get_queryset(self):
+        qs = ClassSectionMaster.objects.select_related('class_master').filter(status=True)
+        class_id = self.request.query_params.get('class_id')
+        if class_id:
+            qs = qs.filter(class_master_id=class_id)
+        return qs
 
 
 class SectionListCreateView(generics.ListCreateAPIView):

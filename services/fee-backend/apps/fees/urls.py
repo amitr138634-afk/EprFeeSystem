@@ -4,6 +4,9 @@ from . import views
 urlpatterns = [
     path('heads/', views.FeeHeadListCreateView.as_view(), name='fee-head-list'),
     path('heads/<int:pk>/', views.FeeHeadDetailView.as_view(), name='fee-head-detail'),
+    path('amounts/', views.FeeAmountListCreateView.as_view(), name='fee-amount-list'),
+    path('amounts/<int:pk>/', views.FeeAmountDetailView.as_view(), name='fee-amount-detail'),
+    path('amounts/bulk-update/', views.FeeAmountBulkUpdateView.as_view(), name='fee-amount-bulk-update'),
     path('structures/', views.FeeStructureListCreateView.as_view(), name='fee-structure-list'),
     path('structures/<int:pk>/', views.FeeStructureDetailView.as_view(), name='fee-structure-detail'),
     path('discounts/heads/', views.DiscountHeadListCreateView.as_view(), name='discount-head-list'),
@@ -29,4 +32,9 @@ urlpatterns = [
     path('deposits/<int:pk>/', views.DepositFeeDetailView.as_view(), name='deposit-detail'),
     path('additional/', views.AdditionalFeeListCreateView.as_view(), name='additional-fee-list'),
     path('additional/<int:pk>/', views.AdditionalFeeDetailView.as_view(), name='additional-fee-detail'),
+    
+    # Admission Queries
+    path('admission-queries/', views.AdmissionQueryListCreateView.as_view(), name='admission-query-list'),
+    path('admission-queries/<int:pk>/', views.AdmissionQueryDetailView.as_view(), name='admission-query-detail'),
+    path('admission-queries/<int:pk>/status/', views.AdmissionQueryStatusUpdateView.as_view(), name='admission-query-status'),
 ]

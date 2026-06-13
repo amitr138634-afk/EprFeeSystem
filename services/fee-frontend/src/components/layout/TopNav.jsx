@@ -159,6 +159,19 @@ const NAV = [
     ],
   },
   {
+    label: 'Master',
+    cols: 1,
+    groups: [
+      {
+        title: 'Master Data',
+        items: [
+          { label: 'Class Master',        to: '/masters/classes' },
+          { label: 'Class Section Master', to: '/masters/sections' },
+        ],
+      },
+    ],
+  },
+  {
     label: 'Frontdesk',
     cols: 3,
     groups: [

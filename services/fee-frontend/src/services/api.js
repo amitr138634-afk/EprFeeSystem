@@ -49,6 +49,12 @@ export const feeApi = {
   createHead:         (data) => api.post('/fees/heads/', data),
   updateHead:         (id, data) => api.patch(`/fees/heads/${id}/`, data),
   deleteHead:         (id) => api.delete(`/fees/heads/${id}/`),
+  /* Fee amounts */
+  amounts:            (params) => api.get('/fees/amounts/', { params }),
+  createAmount:       (data) => api.post('/fees/amounts/', data),
+  updateAmount:       (id, data) => api.patch(`/fees/amounts/${id}/`, data),
+  deleteAmount:       (id) => api.delete(`/fees/amounts/${id}/`),
+  bulkUpdateAmounts:  (data) => api.post('/fees/amounts/bulk-update/', data),
   /* Fee structures */
   structures:         (params) => api.get('/fees/structures/', { params }),
   createStructure:    (data) => api.post('/fees/structures/', data),
@@ -95,6 +101,30 @@ export const feeApi = {
   createAdditionalFee:(data) => api.post('/fees/additional/', data),
   updateAdditionalFee:(id, data) => api.patch(`/fees/additional/${id}/`, data),
   deleteAdditionalFee:(id) => api.delete(`/fees/additional/${id}/`),
+  /* Admission Queries */
+  queries:            (params) => api.get('/fees/admission-queries/', { params }),
+  createQuery:        (data) => api.post('/fees/admission-queries/', data),
+  getQuery:           (id) => api.get(`/fees/admission-queries/${id}/`),
+  updateQuery:        (id, data) => api.patch(`/fees/admission-queries/${id}/`, data),
+  deleteQuery:        (id) => api.delete(`/fees/admission-queries/${id}/`),
+  updateQueryStatus:  (id, data) => api.patch(`/fees/admission-queries/${id}/status/`, data),
+  /* Masters - for convenience */
+  classes:            (params) => api.get('/masters/classes/', { params }),
+}
+
+export const masterApi = {
+  /* Class Master */
+  classes:            (params) => api.get('/masters/classes/', { params }),
+  createClass:        (data) => api.post('/masters/classes/', data),
+  updateClass:        (id, data) => api.patch(`/masters/classes/${id}/`, data),
+  deleteClass:        (id) => api.delete(`/masters/classes/${id}/`),
+  toggleClassStatus:  (id) => api.post(`/masters/classes/${id}/toggle-status/`),
+  /* Section Master */
+  sections:           (params) => api.get('/masters/sections/', { params }),
+  createSection:      (data) => api.post('/masters/sections/', data),
+  updateSection:      (id, data) => api.patch(`/masters/sections/${id}/`, data),
+  deleteSection:      (id) => api.delete(`/masters/sections/${id}/`),
+  toggleSectionStatus:(id) => api.post(`/masters/sections/${id}/toggle-status/`),
 }
 
 export const transportApi = {

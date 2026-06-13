@@ -3,17 +3,21 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.db.models import Sum, Count, Q
 from django.utils import timezone
+from django.core.mail import send_mail
+from django.conf import settings
 from .models import (
-    FeeHead, FeeStructure, DiscountHead, StudentFeeDiscount,
+    FeeHead, FeeAmount, FeeStructure, DiscountHead, StudentFeeDiscount,
     FeeReceipt, FeeReceiptItem, AdditionalFee, DepositFee,
-    BookSet, Book, BookSale, UniformItem, UniformSale, UniformSaleItem
+    BookSet, Book, BookSale, UniformItem, UniformSale, UniformSaleItem,
+    AdmissionQuery
 )
 from .serializers import (
-    FeeHeadSerializer, FeeStructureSerializer, DiscountHeadSerializer,
+    FeeHeadSerializer, FeeAmountSerializer, FeeStructureSerializer, DiscountHeadSerializer,
     StudentFeeDiscountSerializer, FeeReceiptSerializer, FeeReceiptListSerializer,
     PayFeeSerializer, AdditionalFeeSerializer, DepositFeeSerializer,
     BookSetSerializer, BookSerializer, BookSaleSerializer,
-    UniformItemSerializer, UniformSaleSerializer
+    UniformItemSerializer, UniformSaleSerializer,
+    AdmissionQuerySerializer, AdmissionQueryListSerializer
 )
 from utils.permissions import IsSchoolAdmin, IsSchoolStaff
 import uuid
@@ -26,13 +30,79 @@ def generate_receipt_no(prefix='R'):
 class FeeHeadListCreateView(generics.ListCreateAPIView):
     serializer_class = FeeHeadSerializer
     permission_classes = [IsSchoolAdmin]
-    queryset = FeeHead.objects.filter(is_active=True)
+    
+    def get_queryset(self):
+        qs = FeeHead.objects.all().order_by('-created_at')
+        session = self.request.query_params.get('session')
+        if session:
+            qs = qs.filter(session=session)
+        return qs
 
 
 class FeeHeadDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = FeeHeadSerializer
     permission_classes = [IsSchoolAdmin]
     queryset = FeeHead.objects.all()
+
+
+class FeeAmountListCreateView(generics.ListCreateAPIView):
+    serializer_class = FeeAmountSerializer
+    permission_classes = [IsSchoolAdmin]
+
+    def get_queryset(self):
+        qs = FeeAmount.objects.all().order_by('head_name')
+        class_id = self.request.query_params.get('class_id')
+        type_param = self.request.query_params.get('type')
+        session = self.request.query_params.get('session')
+        
+        if class_id:
+            qs = qs.filter(class_id=class_id)
+        if type_param:
+            qs = qs.filter(type=type_param)
+        if session:
+            qs = qs.filter(session=session)
+        return qs
+    
+    def create(self, request, *args, **kwargs):
+        # Bulk create for multiple fee heads
+        data_list = request.data if isinstance(request.data, list) else [request.data]
+        serializer = self.get_serializer(data=data_list, many=True)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class FeeAmountDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = FeeAmountSerializer
+    permission_classes = [IsSchoolAdmin]
+    queryset = FeeAmount.objects.all()
+
+
+class FeeAmountBulkUpdateView(APIView):
+    permission_classes = [IsSchoolAdmin]
+    
+    def post(self, request):
+        """Bulk update fee amounts for multiple heads"""
+        updates = request.data.get('amounts', [])
+        updated_count = 0
+        
+        for item in updates:
+            fee_id = item.get('id')
+            if fee_id:
+                try:
+                    fee_amount = FeeAmount.objects.get(id=fee_id)
+                    for key, value in item.items():
+                        if key != 'id' and hasattr(fee_amount, key):
+                            setattr(fee_amount, key, value)
+                    fee_amount.save()
+                    updated_count += 1
+                except FeeAmount.DoesNotExist:
+                    pass
+        
+        return Response({
+            'message': f'{updated_count} fee amounts updated successfully',
+            'updated_count': updated_count
+        })
 
 
 class FeeStructureListCreateView(generics.ListCreateAPIView):
@@ -370,3 +440,107 @@ class AdditionalFeeDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = AdditionalFeeSerializer
     permission_classes = [IsSchoolAdmin]
     queryset = AdditionalFee.objects.all()
+
+
+class AdmissionQueryListCreateView(generics.ListCreateAPIView):
+    permission_classes = [IsSchoolStaff]
+    
+    def get_serializer_class(self):
+        if self.request.method == 'GET':
+            return AdmissionQueryListSerializer
+        return AdmissionQuerySerializer
+    
+    def get_queryset(self):
+        qs = AdmissionQuery.objects.all()
+        params = self.request.query_params
+        
+        # Filters
+        if params.get('status'):
+            qs = qs.filter(status=params['status'])
+        if params.get('session'):
+            qs = qs.filter(session=params['session'])
+        if params.get('class_id'):
+            qs = qs.filter(class_id=params['class_id'])
+        if params.get('source'):
+            qs = qs.filter(source_of_information=params['source'])
+        if params.get('search'):
+            search = params['search']
+            qs = qs.filter(
+                Q(student_name__icontains=search) |
+                Q(father_name__icontains=search) |
+                Q(father_mobile__icontains=search) |
+                Q(mother_mobile__icontains=search)
+            )
+        
+        return qs
+    
+    def perform_create(self, serializer):
+        query = serializer.save(created_by=self.request.user.id if hasattr(self.request.user, 'id') else None)
+        
+        # Send email notification to father's email
+        if query.father_email:
+            self.send_query_email(query)
+    
+    def send_query_email(self, query):
+        """Send admission query confirmation email"""
+        try:
+            subject = f'Admission Query Received - {query.student_name}'
+            message = f"""
+Dear {query.father_name},
+
+Thank you for your interest in our school for admission of your child {query.student_name}.
+
+Query Details:
+- Student Name: {query.student_name}
+- Class: {query.class_name}
+- Session: {query.session}
+- Date of Birth: {query.date_of_birth}
+- Query Date: {query.query_date.strftime('%d-%m-%Y')}
+
+We have received your admission query. Our team will contact you shortly on your registered mobile number ({query.father_mobile}).
+
+For any immediate assistance, please feel free to contact us.
+
+Best Regards,
+School Administration
+            """
+            
+            send_mail(
+                subject=subject,
+                message=message,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[query.father_email],
+                fail_silently=True,
+            )
+        except Exception as e:
+            print(f"Email sending failed: {str(e)}")
+
+
+class AdmissionQueryDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = AdmissionQuerySerializer
+    permission_classes = [IsSchoolStaff]
+    queryset = AdmissionQuery.objects.all()
+
+
+class AdmissionQueryStatusUpdateView(APIView):
+    permission_classes = [IsSchoolStaff]
+    
+    def patch(self, request, pk):
+        try:
+            query = AdmissionQuery.objects.get(pk=pk)
+            new_status = request.data.get('status')
+            remarks = request.data.get('remarks', '')
+            follow_up_date = request.data.get('follow_up_date')
+            
+            if new_status:
+                query.status = new_status
+            if remarks:
+                query.remarks = remarks
+            if follow_up_date:
+                query.follow_up_date = follow_up_date
+                
+            query.save()
+            
+            return Response(AdmissionQuerySerializer(query).data)
+        except AdmissionQuery.DoesNotExist:
+            return Response({'detail': 'Query not found.'}, status=status.HTTP_404_NOT_FOUND)

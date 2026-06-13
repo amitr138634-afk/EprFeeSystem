@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Student, Class, Section
+from .models import Student, Class, Section, ClassMaster, ClassSectionMaster
 
 
 class SectionSerializer(serializers.ModelSerializer):
@@ -16,6 +16,22 @@ class ClassSerializer(serializers.ModelSerializer):
     class Meta:
         model = Class
         fields = ['id', 'name', 'order', 'sections']
+
+
+class ClassSectionMasterSerializer(serializers.ModelSerializer):
+    class_name = serializers.CharField(source='class_master.class_name', read_only=True)
+
+    class Meta:
+        model = ClassSectionMaster
+        fields = ['id', 'class_master', 'class_name', 'section_name', 'status', 'session']
+
+
+class ClassMasterSerializer(serializers.ModelSerializer):
+    sections = ClassSectionMasterSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = ClassMaster
+        fields = ['id', 'class_name', 'status', 'session', 'sections']
 
 
 class StudentSerializer(serializers.ModelSerializer):

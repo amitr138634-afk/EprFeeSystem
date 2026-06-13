@@ -22,9 +22,10 @@ const SCHOOL_ADMIN_NAV = [
   {
     label: 'Staff',
     items: [
-      { label: 'Staff List',         to: '/staff' },
-      { label: 'Department Master',  to: '/staff/departments' },
-      { label: 'Designation Master', to: '/staff/designations' },
+      { label: 'Staff List',                    to: '/staff' },
+      { label: 'Department Master',             to: '/staff/departments' },
+      { label: 'Designation Master',            to: '/staff/designations' },
+      { label: 'Department-Designation Master', to: '/staff/dept-designation-mapping' },
     ],
   },
   {

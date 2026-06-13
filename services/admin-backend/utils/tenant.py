@@ -26,10 +26,19 @@ def register_school_database(school_id, db_name=None):
     """Dynamically register a school's database in Django's DATABASES setting."""
     alias = get_school_db_alias(school_id)
     if alias not in settings.DATABASES:
+        # Fetch actual db_name from School model if not provided
+        if not db_name:
+            try:
+                from apps.schools.models import School
+                school = School.objects.using('default').get(id=school_id)
+                db_name = school.db_name
+            except Exception:
+                db_name = f'school_erp_{school_id}'
+        
         default = settings.DATABASES['default']
         settings.DATABASES[alias] = {
             'ENGINE': 'django.db.backends.postgresql',
-            'NAME': db_name or f'school_erp_{school_id}',
+            'NAME': db_name,
             'USER': default['USER'],
             'PASSWORD': default['PASSWORD'],
             'HOST': default['HOST'],

@@ -1,5 +1,7 @@
 from utils.tenant import get_current_tenant
 
+# Only these apps should use central DB
+# All other apps (fees, masters, transport, students, frontdesk) use tenant DB
 CENTRAL_APPS = {
     'accounts', 'schools', 'admin', 'auth', 'contenttypes', 'sessions',
     'token_blacklist',

@@ -26,4 +26,5 @@ urlpatterns = [
     path('api/transport/', include('apps.transport.urls')),
     path('api/students/', include('apps.students.urls')),
     path('api/frontdesk/', include('apps.frontdesk.urls')),
+    path('api/masters/', include('apps.masters.urls')),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

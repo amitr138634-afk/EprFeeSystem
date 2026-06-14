@@ -15,6 +15,12 @@ const NAV = [
     cols: 3,
     groups: [
       {
+        title: 'Pay Fee',
+        items: [
+          { label: 'Pay Fee',             to: '/feemgmt/pay-fee' },
+        ],
+      },
+      {
         title: 'Fee Setup',
         items: [
           { label: 'Define Fee Heads',        to: '/fees/heads' },
@@ -26,9 +32,9 @@ const NAV = [
         ],
       },
       {
-        title: 'Fee Collection',
+        title: 'Fee Collection (Old)',
         items: [
-          { label: 'Pay Fee',                    to: '/fees/pay' },
+          { label: 'Pay Fee (Old)',              to: '/fees/pay' },
           { label: 'Pay Extra Fee',              to: '/fees/pay-extra' },
           { label: 'Auto Late Fine Calculation', to: '/fees/late-fine' },
           { label: 'Reverify Payment',           to: '/fees/reverify' },
@@ -166,6 +172,7 @@ const NAV = [
         title: 'Master Data',
         items: [
           { label: 'Class Master',        to: '/masters/classes' },
+          { label: 'Sec Master',          to: '/masters/sec-master' },
           { label: 'Class Section Master', to: '/masters/sections' },
         ],
       },

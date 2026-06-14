@@ -44,11 +44,18 @@ import DateWiseStaffSummary from './pages/attendance/DateWiseStaffSummary'
 // School Admin — Timetable
 import SubjectMaster from './pages/timetable/SubjectMaster'
 import PeriodMaster from './pages/timetable/PeriodMaster'
+import AddUpdateTimetable from './pages/timetable/AddUpdateTimetable'
 import ClassWiseTimetable from './pages/timetable/ClassWiseTimetable'
 import TeacherTimetable from './pages/timetable/TeacherTimetable'
 import DayWiseTimetable from './pages/timetable/DayWiseTimetable'
 import WorkloadReport from './pages/timetable/WorkloadReport'
 import SubstituteTeacher from './pages/timetable/SubstituteTeacher'
+import SubstituteReport from './pages/timetable/SubstituteReport'
+import MonthlySubstituteReport from './pages/timetable/MonthlySubstituteReport'
+
+// School Admin — Masters
+import MastersSubjects from './pages/masters/SubjectMaster'
+import MastersPeriods from './pages/masters/PeriodMaster'
 
 // School Admin — CCE / Assign Subject & Test
 import ExamTypes from './pages/cce/ExamTypes'
@@ -140,13 +147,13 @@ export default function App() {
         <Route path="attendance/staff/date-wise"      element={<SR roles={ADMIN_ONLY}><DateWiseStaffSummary /></SR>} />
 
         {/* ── Timetable ────────────────────────────────────────────── */}
-        <Route path="timetable/subjects"   element={<SR roles={ADMIN_ONLY}><SubjectMaster /></SR>} />
-        <Route path="timetable/periods"    element={<SR roles={ADMIN_ONLY}><PeriodMaster /></SR>} />
-        <Route path="timetable/class-wise" element={<SR roles={SCHOOL_ROLES}><ClassWiseTimetable /></SR>} />
-        <Route path="timetable/teacher"    element={<SR roles={SCHOOL_ROLES}><TeacherTimetable /></SR>} />
-        <Route path="timetable/day-wise"   element={<SR roles={SCHOOL_ROLES}><DayWiseTimetable /></SR>} />
-        <Route path="timetable/workload"   element={<SR roles={SCHOOL_ROLES}><WorkloadReport /></SR>} />
-        <Route path="timetable/substitute" element={<SR roles={ADMIN_ONLY}><SubstituteTeacher /></SR>} />
+        <Route path="timetable/add-update"          element={<SR roles={ADMIN_ONLY}><AddUpdateTimetable /></SR>} />
+        <Route path="timetable/teacher"             element={<SR roles={SCHOOL_ROLES}><TeacherTimetable /></SR>} />
+        <Route path="timetable/day-wise"            element={<SR roles={SCHOOL_ROLES}><DayWiseTimetable /></SR>} />
+        <Route path="timetable/class-wise"          element={<SR roles={SCHOOL_ROLES}><ClassWiseTimetable /></SR>} />
+        <Route path="timetable/workload"            element={<SR roles={SCHOOL_ROLES}><WorkloadReport /></SR>} />
+        <Route path="timetable/substitute-report"   element={<SR roles={SCHOOL_ROLES}><SubstituteReport /></SR>} />
+        <Route path="timetable/monthly-substitute"  element={<SR roles={SCHOOL_ROLES}><MonthlySubstituteReport /></SR>} />
 
         {/* ── CCE — Assign Subject & Test ──────────────────────────── */}
         <Route path="cce/exam-types"      element={<SR roles={ADMIN_ONLY}><ExamTypes /></SR>} />
@@ -165,6 +172,10 @@ export default function App() {
         <Route path="academics/grade-scale" element={<SR roles={ADMIN_ONLY}><GradeScale /></SR>} />
         <Route path="academics/calculation" element={<SR roles={ADMIN_ONLY}><CalculationMaster /></SR>} />
         <Route path="academics/results"     element={<SR roles={SCHOOL_ROLES}><ClassResults /></SR>} />
+
+        {/* ── Masters ──────────────────────────────────────────────── */}
+        <Route path="masters/subjects" element={<SR roles={ADMIN_ONLY}><MastersSubjects /></SR>} />
+        <Route path="masters/periods"  element={<SR roles={ADMIN_ONLY}><MastersPeriods /></SR>} />
 
         {/* ── Report Card ──────────────────────────────────────────── */}
         <Route path="report-card/generate" element={<SR roles={SCHOOL_ROLES}><GenerateReportCard /></SR>} />

@@ -63,15 +63,22 @@ const SCHOOL_ADMIN_NAV = [
     ],
   },
   {
+    label: 'Masters',
+    items: [
+      { label: 'Subject Master', to: '/masters/subjects' },
+      { label: 'Period Master',  to: '/masters/periods' },
+    ],
+  },
+  {
     label: 'Timetable',
     items: [
-      { label: 'Subjects',           to: '/timetable/subjects' },
-      { label: 'Periods',            to: '/timetable/periods' },
-      { label: 'Class-wise',         to: '/timetable/class-wise' },
-      { label: 'Teacher-wise',       to: '/timetable/teacher' },
-      { label: 'Day-wise',           to: '/timetable/day-wise' },
-      { label: 'Workload Report',    to: '/timetable/workload' },
-      { label: 'Substitute Teacher', to: '/timetable/substitute' },
+      { label: 'Add / Update Timetable',      to: '/timetable/add-update' },
+      { label: 'View Teacher Timetable',      to: '/timetable/teacher' },
+      { label: 'View Day Wise Timetable',     to: '/timetable/day-wise' },
+      { label: 'Class Wise Timetable',        to: '/timetable/class-wise' },
+      { label: 'Timetable Workload',          to: '/timetable/workload' },
+      { label: 'Teacher Substitute Report',   to: '/timetable/substitute-report' },
+      { label: 'Month Wise Substitute Report', to: '/timetable/monthly-substitute' },
     ],
   },
   {

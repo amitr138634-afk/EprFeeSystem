@@ -30,13 +30,6 @@ def migrate_tenant(school_code):
         # Copy all settings from default DB and override NAME
         settings.DATABASES[db_name] = settings.DATABASES['default'].copy()
         settings.DATABASES[db_name]['NAME'] = db_name
-            'USER': settings.DATABASES['default']['USER'],
-            'PASSWORD': settings.DATABASES['default']['PASSWORD'],
-            'HOST': settings.DATABASES['default']['HOST'],
-            'PORT': settings.DATABASES['default']['PORT'],
-            'TIME_ZONE': settings.TIME_ZONE,
-            'CONN_MAX_AGE': 0,
-        }
     
     print("\n" + "="*70)
     print(f"MIGRATING FEE-BACKEND ON TENANT: {db_name}")

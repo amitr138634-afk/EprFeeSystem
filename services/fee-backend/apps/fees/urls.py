@@ -37,4 +37,13 @@ urlpatterns = [
     path('admission-queries/', views.AdmissionQueryListCreateView.as_view(), name='admission-query-list'),
     path('admission-queries/<int:pk>/', views.AdmissionQueryDetailView.as_view(), name='admission-query-detail'),
     path('admission-queries/<int:pk>/status/', views.AdmissionQueryStatusUpdateView.as_view(), name='admission-query-status'),
+    path('admission-queries/pay-registration/', views.PayRegistrationFeeView.as_view(), name='pay-registration-fee'),
+    path('admission-queries/<int:pk>/receipt/', views.RegistrationReceiptView.as_view(), name='registration-receipt'),
+    path('admission-queries/<int:pk>/approve/', views.ApproveAdmissionView.as_view(), name='approve-admission'),
+    path('admission-queries/<int:pk>/unapprove/', views.UnapproveAdmissionView.as_view(), name='unapprove-admission'),
+    
+    # Student Management
+    path('students/search/', views.StudentSearchView.as_view(), name='student-search'),
+    path('students/<int:student_id>/profile/', views.StudentProfileView.as_view(), name='student-profile'),
+    path('students/by-class/', views.StudentsByClassView.as_view(), name='students-by-class'),
 ]

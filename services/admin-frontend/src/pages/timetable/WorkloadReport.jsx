@@ -1,164 +1,169 @@
 import { useQuery } from '@tanstack/react-query'
-import { BarChart2 } from 'lucide-react'
-import { timetableApi, staffApi } from '../../services/api'
-
-const DAYS = [
-  { label: 'Mon', value: 1 },
-  { label: 'Tue', value: 2 },
-  { label: 'Wed', value: 3 },
-  { label: 'Thu', value: 4 },
-  { label: 'Fri', value: 5 },
-  { label: 'Sat', value: 6 },
-]
-
-function getWorkloadColor(total) {
-  if (total === 0) return 'text-gray-400'
-  if (total <= 10) return 'text-green-600'
-  if (total <= 20) return 'text-blue-600'
-  if (total <= 30) return 'text-orange-500'
-  return 'text-red-600'
-}
+import { BarChart3, Printer, Download } from 'lucide-react'
+import api, { staffApi } from '../../services/api'
 
 export default function WorkloadReport() {
-  const { data: staffData, isLoading: staffLoading } = useQuery({
-    queryKey: ['staff-all'],
-    queryFn: () => staffApi.list({ page_size: 500 }).then(r => r.data),
-  })
-  const teachers = (staffData?.results || staffData || [])
-    .filter(s => s.staff_type === 'teaching' || !s.staff_type)
-
-  const { data: allEntries = [], isLoading: ttLoading } = useQuery({
-    queryKey: ['timetable-all'],
-    queryFn: () => timetableApi.list({}).then(r => r.data),
+  // Fetch Teachers
+  const { data: teachers = [] } = useQuery({
+    queryKey: ['teachers'],
+    queryFn: () => staffApi.list().then(r => r.data.results || r.data),
   })
 
-  const isLoading = staffLoading || ttLoading
-
-  // Build workload map: teacher_id -> { day: count }
-  const workloadMap = {}
-  allEntries.forEach(entry => {
-    const tid = entry.teacher_id || entry.teacher?.id
-    if (!tid) return
-    if (!workloadMap[tid]) workloadMap[tid] = {}
-    workloadMap[tid][entry.day] = (workloadMap[tid][entry.day] || 0) + 1
+  // Fetch All Timetable Entries
+  const { data: timetableEntries = [], isLoading } = useQuery({
+    queryKey: ['all-timetable'],
+    queryFn: () => api.get('/timetable/').then(r => r.data.results || r.data),
   })
 
-  // Totals per teacher
-  const totalMap = {}
-  Object.entries(workloadMap).forEach(([tid, dayMap]) => {
-    totalMap[tid] = Object.values(dayMap).reduce((a, b) => a + b, 0)
-  })
+  // Calculate workload for each teacher
+  const teacherWorkload = teachers.map(teacher => {
+    const assignments = timetableEntries.filter(entry => entry.teacher === teacher.id)
+    const uniqueClasses = [...new Set(assignments.map(a => a.class_name))].filter(Boolean)
+    const uniqueSubjects = [...new Set(assignments.map(a => a.subject_name))].filter(Boolean)
+    
+    return {
+      ...teacher,
+      totalClasses: assignments.length,
+      uniqueClasses: uniqueClasses.length,
+      uniqueSubjects: uniqueSubjects.length,
+      classes: uniqueClasses,
+      subjects: uniqueSubjects
+    }
+  }).filter(t => t.totalClasses > 0).sort((a, b) => b.totalClasses - a.totalClasses)
 
-  // Overall stats
-  const teachersWithLoad = teachers.filter(t => (totalMap[t.id] || 0) > 0)
-  const avgLoad = teachersWithLoad.length
-    ? Math.round(teachersWithLoad.reduce((a, t) => a + (totalMap[t.id] || 0), 0) / teachersWithLoad.length)
+  const totalAssignments = timetableEntries.length
+  const avgWorkload = teacherWorkload.length > 0 
+    ? (totalAssignments / teacherWorkload.length).toFixed(1) 
     : 0
-  const maxTeacher = teachersWithLoad.reduce((max, t) =>
-    (totalMap[t.id] || 0) > (totalMap[max?.id] || 0) ? t : max, null)
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-xl font-bold text-gray-800">Teacher Workload Report</h1>
-        <p className="text-sm text-gray-500">Weekly period distribution across all teachers</p>
+      <div className="bg-gradient-to-r from-orange-600 to-orange-700 text-white p-6 rounded-lg shadow-lg print:hidden">
+        <h1 className="text-2xl font-bold flex items-center gap-3">
+          <BarChart3 size={32} />
+          Timetable Workload Report
+        </h1>
+        <p className="text-orange-100 mt-1">Teacher workload analysis and distribution</p>
       </div>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <div className="card p-4">
-          <div className="text-xs text-gray-500">Total Teachers</div>
-          <div className="text-2xl font-bold text-gray-800 mt-1">{teachers.length}</div>
+      {/* Summary Cards */}
+      <div className="grid grid-cols-4 gap-6">
+        <div className="bg-white p-6 rounded-lg shadow">
+          <div className="text-3xl font-bold text-orange-600">{teacherWorkload.length}</div>
+          <div className="text-sm text-gray-600 mt-1">Active Teachers</div>
         </div>
-        <div className="card p-4">
-          <div className="text-xs text-gray-500">Teachers Assigned</div>
-          <div className="text-2xl font-bold text-blue-600 mt-1">{teachersWithLoad.length}</div>
+        <div className="bg-white p-6 rounded-lg shadow">
+          <div className="text-3xl font-bold text-blue-600">{totalAssignments}</div>
+          <div className="text-sm text-gray-600 mt-1">Total Classes</div>
         </div>
-        <div className="card p-4">
-          <div className="text-xs text-gray-500">Avg Periods/Week</div>
-          <div className="text-2xl font-bold text-green-600 mt-1">{avgLoad}</div>
+        <div className="bg-white p-6 rounded-lg shadow">
+          <div className="text-3xl font-bold text-green-600">{avgWorkload}</div>
+          <div className="text-sm text-gray-600 mt-1">Avg per Teacher</div>
         </div>
-        <div className="card p-4">
-          <div className="text-xs text-gray-500">Highest Workload</div>
-          <div className="text-sm font-bold text-orange-600 mt-1 truncate">
-            {maxTeacher
-              ? `${maxTeacher.full_name || `${maxTeacher.first_name} ${maxTeacher.last_name}`} (${totalMap[maxTeacher.id]})`
-              : '—'}
-          </div>
+        <div className="bg-white p-6 rounded-lg shadow flex items-center justify-center gap-2 print:hidden">
+          <button
+            onClick={() => window.print()}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+          >
+            <Printer size={18} />
+            Print
+          </button>
         </div>
       </div>
 
       {/* Workload Table */}
-      <div className="card">
-        <div className="flex items-center gap-2 px-4 pt-4 pb-2 border-b border-gray-100">
-          <BarChart2 size={16} className="text-blue-500" />
-          <span className="text-sm font-semibold text-gray-700">Periods Per Day</span>
+      <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h2 className="text-lg font-semibold text-gray-800">Teacher-wise Workload</h2>
         </div>
-        <div className="table-container">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Teacher Name</th>
-                <th>Designation</th>
-                {DAYS.map(d => <th key={d.value} className="text-center">{d.label}</th>)}
-                <th className="text-center">Total/Week</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading ? (
-                <tr><td colSpan={10} className="text-center py-8 text-gray-400">Loading...</td></tr>
-              ) : teachers.length === 0 ? (
-                <tr><td colSpan={10} className="text-center py-8 text-gray-400">No teaching staff found</td></tr>
-              ) : (
-                teachers
-                  .sort((a, b) => (totalMap[b.id] || 0) - (totalMap[a.id] || 0))
-                  .map((t, i) => {
-                    const dayMap = workloadMap[t.id] || {}
-                    const total = totalMap[t.id] || 0
-                    return (
-                      <tr key={t.id}>
-                        <td className="text-gray-500">{i + 1}</td>
-                        <td>
-                          <div className="flex items-center gap-2">
-                            <div className="w-7 h-7 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 text-xs font-semibold flex-shrink-0">
-                              {(t.first_name || t.full_name || '?').charAt(0).toUpperCase()}
-                            </div>
-                            <span className="font-medium text-gray-800">
-                              {t.full_name || `${t.first_name} ${t.last_name}`}
-                            </span>
+
+        {isLoading ? (
+          <div className="p-12 text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600">Loading workload data...</p>
+          </div>
+        ) : teacherWorkload.length === 0 ? (
+          <div className="p-12 text-center text-gray-500">
+            No timetable assignments found.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">#</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Teacher Name</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee ID</th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Total Classes</th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Unique Classes</th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Subjects</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Workload</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {teacherWorkload.map((teacher, idx) => {
+                  const workloadPercent = (teacher.totalClasses / totalAssignments) * 100
+                  let workloadColor = 'bg-green-500'
+                  if (workloadPercent > 20) workloadColor = 'bg-orange-500'
+                  if (workloadPercent > 30) workloadColor = 'bg-red-500'
+                  
+                  return (
+                    <tr key={teacher.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 text-sm text-gray-500">{idx + 1}</td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm font-medium text-gray-900">{teacher.full_name}</div>
+                        <div className="text-xs text-gray-500">{teacher.designation || 'Teacher'}</div>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600">{teacher.employee_id}</td>
+                      <td className="px-6 py-4 text-center">
+                        <span className="text-2xl font-bold text-orange-600">{teacher.totalClasses}</span>
+                      </td>
+                      <td className="px-6 py-4 text-center text-sm">{teacher.uniqueClasses}</td>
+                      <td className="px-6 py-4 text-center text-sm">{teacher.uniqueSubjects}</td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 bg-gray-200 rounded-full h-2">
+                            <div
+                              className={`h-2 rounded-full ${workloadColor}`}
+                              style={{ width: `${Math.min(workloadPercent * 2, 100)}%` }}
+                            ></div>
                           </div>
-                        </td>
-                        <td className="text-gray-500 text-xs">{t.designation_name || '—'}</td>
-                        {DAYS.map(d => (
-                          <td key={d.value} className="text-center">
-                            {dayMap[d.value] ? (
-                              <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-semibold ${
-                                dayMap[d.value] >= 6 ? 'bg-orange-100 text-orange-700' :
-                                dayMap[d.value] >= 4 ? 'bg-blue-100 text-blue-700' :
-                                'bg-green-100 text-green-700'
-                              }`}>
-                                {dayMap[d.value]}
-                              </span>
-                            ) : (
-                              <span className="text-gray-200 text-xs">—</span>
-                            )}
-                          </td>
-                        ))}
-                        <td className="text-center">
-                          <span className={`text-base font-bold ${getWorkloadColor(total)}`}>
-                            {total}
+                          <span className="text-xs font-medium text-gray-600">
+                            {workloadPercent.toFixed(1)}%
                           </span>
-                        </td>
-                      </tr>
-                    )
-                  })
-              )}
-            </tbody>
-          </table>
-        </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
+
+      {/* Distribution Chart */}
+      {teacherWorkload.length > 0 && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">Workload Distribution</h3>
+          <div className="space-y-3">
+            {teacherWorkload.slice(0, 10).map((teacher) => (
+              <div key={teacher.id} className="flex items-center gap-3">
+                <div className="w-32 text-sm text-gray-700 truncate">{teacher.full_name}</div>
+                <div className="flex-1 bg-gray-100 rounded-full h-8 relative">
+                  <div
+                    className="bg-gradient-to-r from-orange-400 to-orange-600 h-8 rounded-full flex items-center justify-end pr-3 text-white text-sm font-medium"
+                    style={{ width: `${(teacher.totalClasses / teacherWorkload[0].totalClasses) * 100}%` }}
+                  >
+                    {teacher.totalClasses}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

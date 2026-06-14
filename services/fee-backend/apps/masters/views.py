@@ -1,8 +1,8 @@
 from rest_framework import generics, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from .models import ClassMaster, ClassSectionMaster
-from .serializers import ClassMasterSerializer, ClassSectionMasterSerializer
+from .models import ClassMaster, ClassSectionMaster, SectionMaster
+from .serializers import ClassMasterSerializer, ClassSectionMasterSerializer, SectionMasterSerializer
 from utils.permissions import IsSchoolAdmin
 
 
@@ -41,6 +41,37 @@ class ClassMasterToggleStatusView(APIView):
             return Response({'detail': 'Class not found.'}, status=status.HTTP_404_NOT_FOUND)
 
 
+# Independent Section Master Views
+class SectionMasterListCreateView(generics.ListCreateAPIView):
+    serializer_class = SectionMasterSerializer
+    permission_classes = [IsSchoolAdmin]
+    queryset = SectionMaster.objects.all()
+
+
+class SectionMasterDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = SectionMasterSerializer
+    permission_classes = [IsSchoolAdmin]
+    queryset = SectionMaster.objects.all()
+
+
+class SectionMasterToggleStatusView(APIView):
+    permission_classes = [IsSchoolAdmin]
+
+    def post(self, request, pk):
+        try:
+            section_obj = SectionMaster.objects.get(pk=pk)
+            section_obj.status = not section_obj.status
+            section_obj.save()
+            return Response({
+                'id': section_obj.id,
+                'status': section_obj.status,
+                'message': f'Section {"activated" if section_obj.status else "deactivated"} successfully'
+            })
+        except SectionMaster.DoesNotExist:
+            return Response({'detail': 'Section not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+
+# Class Section Master Views (with class relationship)
 class ClassSectionMasterListCreateView(generics.ListCreateAPIView):
     serializer_class = ClassSectionMasterSerializer
     permission_classes = [IsSchoolAdmin]

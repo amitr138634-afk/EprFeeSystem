@@ -25,6 +25,22 @@ class Section(models.Model):
 
 
 # Fee-backend ke tables ko use karne ke liye (managed=False means no migrations)
+class SectionMaster(models.Model):
+    """Uses sec_master table from fee-backend - Generic sections (A, B, C, D etc)"""
+    section = models.CharField(max_length=50, verbose_name='Section Name', unique=True)
+    status = models.BooleanField(default=True, help_text='1=Active, 0=Inactive')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'sec_master'
+        managed = False  # Table created by fee-backend
+        ordering = ['section']
+
+    def __str__(self):
+        return self.section
+
+
 class ClassMaster(models.Model):
     """Uses class_master table from fee-backend (no migrations generated here)"""
     class_name = models.CharField(max_length=50, verbose_name='Class')

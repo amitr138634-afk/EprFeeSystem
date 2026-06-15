@@ -1,33 +1,51 @@
 from django.db import models
-from apps.students.models import Class, Section
+from apps.students.models import ClassMaster, ClassSectionMaster
 from apps.staff.models import Staff
 
 
 class Subject(models.Model):
+    """Subject Master - Global subjects list"""
+    STATUS_CHOICES = [('active', 'Active'), ('inactive', 'Inactive')]
+    
     name = models.CharField(max_length=100)
-    code = models.CharField(max_length=20, unique=True)
-    is_elective = models.BooleanField(default=False)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='active')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = 'subjects'
+        ordering = ['name']
 
     def __str__(self):
-        return f'{self.name} ({self.code})'
+        return self.name
 
 
 class Period(models.Model):
-    name = models.CharField(max_length=20)
+    """Period Master - Time slots for timetable"""
+    name = models.CharField(max_length=50)  # e.g., "Period 1", "Break", "Lunch"
     start_time = models.TimeField()
     end_time = models.TimeField()
-    order = models.IntegerField(default=0)
-    is_break = models.BooleanField(default=False)
+    period_order = models.IntegerField(default=0, help_text='Display order')
+    is_break = models.BooleanField(default=False, help_text='Is this a break period?')
+    status = models.BooleanField(default=True, help_text='Active/Inactive')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = 'periods'
-        ordering = ['order']
+        ordering = ['period_order']
 
     def __str__(self):
-        return f'{self.name} ({self.start_time}-{self.end_time})'
+        return f'{self.name} ({self.start_time.strftime("%H:%M")}-{self.end_time.strftime("%H:%M")})'
+    
+    @property
+    def duration_minutes(self):
+        """Calculate duration in minutes"""
+        from datetime import datetime, timedelta
+        start = datetime.combine(datetime.today(), self.start_time)
+        end = datetime.combine(datetime.today(), self.end_time)
+        duration = end - start
+        return int(duration.total_seconds() / 60)
 
 
 class Timetable(models.Model):
@@ -36,10 +54,10 @@ class Timetable(models.Model):
         ('THU', 'Thursday'), ('FRI', 'Friday'), ('SAT', 'Saturday'),
     ]
 
-    class_ref = models.ForeignKey(Class, on_delete=models.CASCADE)
-    section = models.ForeignKey(Section, on_delete=models.CASCADE)
+    class_ref = models.ForeignKey(ClassMaster, on_delete=models.CASCADE, related_name='timetables')
+    sections = models.ManyToManyField(ClassSectionMaster, blank=True, related_name='timetables')
     day = models.CharField(max_length=3, choices=DAYS)
-    period = models.ForeignKey(Period, on_delete=models.CASCADE)
+    period = models.ForeignKey(Period, on_delete=models.CASCADE, related_name='timetable_entries')
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE, null=True, blank=True)
     teacher = models.ForeignKey(Staff, on_delete=models.SET_NULL, null=True, blank=True)
     room = models.CharField(max_length=20, blank=True)
@@ -47,10 +65,11 @@ class Timetable(models.Model):
 
     class Meta:
         db_table = 'timetable'
-        unique_together = ['class_ref', 'section', 'day', 'period', 'session_year']
+        ordering = ['day', 'period__period_order']
 
     def __str__(self):
-        return f'{self.class_ref}-{self.section} {self.day} {self.period}'
+        sections_str = ', '.join([s.section_name for s in self.sections.all()]) if self.sections.exists() else 'All'
+        return f'{self.class_ref.class_name} ({sections_str}) - {self.day} - {self.period}'
 
 
 class SubstituteTeacher(models.Model):

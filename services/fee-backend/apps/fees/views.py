@@ -9,7 +9,7 @@ from .models import (
     FeeHead, FeeAmount, FeeStructure, DiscountHead, StudentFeeDiscount,
     FeeReceipt, FeeReceiptItem, AdditionalFee, DepositFee,
     BookSet, Book, BookSale, UniformItem, UniformSale, UniformSaleItem,
-    AdmissionQuery
+    AdmissionQuery, RegistrationFeePaid, StudentFeeDetail
 )
 from .serializers import (
     FeeHeadSerializer, FeeAmountSerializer, FeeStructureSerializer, DiscountHeadSerializer,
@@ -17,7 +17,7 @@ from .serializers import (
     PayFeeSerializer, AdditionalFeeSerializer, DepositFeeSerializer,
     BookSetSerializer, BookSerializer, BookSaleSerializer,
     UniformItemSerializer, UniformSaleSerializer,
-    AdmissionQuerySerializer, AdmissionQueryListSerializer
+    AdmissionQuerySerializer, AdmissionQueryListSerializer, RegistrationFeePaidSerializer
 )
 from utils.permissions import IsSchoolAdmin, IsSchoolStaff
 import uuid
@@ -457,6 +457,8 @@ class AdmissionQueryListCreateView(generics.ListCreateAPIView):
         # Filters
         if params.get('status'):
             qs = qs.filter(status=params['status'])
+        if params.get('adm_status'):
+            qs = qs.filter(adm_status=params['adm_status'])
         if params.get('session'):
             qs = qs.filter(session=params['session'])
         if params.get('class_id'):
@@ -505,15 +507,25 @@ Best Regards,
 School Administration
             """
             
+            print(f"📧 Attempting to send email to: {query.father_email}")
+            print(f"📧 From: {settings.DEFAULT_FROM_EMAIL}")
+            print(f"📧 Subject: {subject}")
+            
             send_mail(
                 subject=subject,
                 message=message,
                 from_email=settings.DEFAULT_FROM_EMAIL,
                 recipient_list=[query.father_email],
-                fail_silently=True,
+                fail_silently=False,  # Changed to False to see errors
             )
+            
+            print(f"✅ Email sent successfully to {query.father_email}")
+            
         except Exception as e:
-            print(f"Email sending failed: {str(e)}")
+            print(f"❌ Email sending failed: {str(e)}")
+            print(f"❌ Error type: {type(e).__name__}")
+            import traceback
+            print(traceback.format_exc())
 
 
 class AdmissionQueryDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -528,12 +540,12 @@ class AdmissionQueryStatusUpdateView(APIView):
     def patch(self, request, pk):
         try:
             query = AdmissionQuery.objects.get(pk=pk)
-            new_status = request.data.get('status')
+            new_status = request.data.get('adm_status')
             remarks = request.data.get('remarks', '')
             follow_up_date = request.data.get('follow_up_date')
             
             if new_status:
-                query.status = new_status
+                query.adm_status = new_status
             if remarks:
                 query.remarks = remarks
             if follow_up_date:
@@ -544,3 +556,433 @@ class AdmissionQueryStatusUpdateView(APIView):
             return Response(AdmissionQuerySerializer(query).data)
         except AdmissionQuery.DoesNotExist:
             return Response({'detail': 'Query not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+
+class PayRegistrationFeeView(APIView):
+    permission_classes = [IsSchoolStaff]
+    
+    def post(self, request):
+        try:
+            query_id = request.data.get('admission_query_id')
+            query = AdmissionQuery.objects.get(pk=query_id)
+            
+            # Check if already paid
+            if hasattr(query, 'registration_payment'):
+                return Response(
+                    {'detail': 'Registration fee already paid for this enquiry.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Generate receipt number
+            receipt_no = f"REG{timezone.now().strftime('%Y%m%d')}{str(uuid.uuid4().int)[:6]}"
+            
+            # Create payment record
+            payment = RegistrationFeePaid.objects.create(
+                admission_query=query,
+                student_name=query.student_name,
+                father_name=query.father_name,
+                class_name=query.class_name,
+                mobile=query.father_mobile,
+                amount=request.data.get('amount', 100.00),
+                payment_mode=request.data.get('payment_mode'),
+                payment_date=request.data.get('payment_date'),
+                transaction_id=request.data.get('transaction_id', ''),
+                bank_name=request.data.get('bank_name', ''),
+                receipt_no=receipt_no,
+                collected_by=request.user.id if hasattr(request.user, 'id') else None,
+                remarks=request.data.get('remarks', '')
+            )
+            
+            # Update admission query status to 'registered' after payment
+            query.adm_status = 'registered'
+            query.save()
+            
+            return Response(
+                RegistrationFeePaidSerializer(payment).data,
+                status=status.HTTP_201_CREATED
+            )
+            
+        except AdmissionQuery.DoesNotExist:
+            return Response(
+                {'detail': 'Admission query not found.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            return Response(
+                {'detail': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+
+class RegistrationReceiptView(APIView):
+    permission_classes = [IsSchoolStaff]
+    
+    def get(self, request, pk):
+        """Get registration receipt by admission query ID"""
+        try:
+            query = AdmissionQuery.objects.get(pk=pk)
+            
+            if not hasattr(query, 'registration_payment'):
+                return Response(
+                    {'detail': 'No payment record found for this enquiry.'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            payment = query.registration_payment
+            receipt_data = {
+                'receipt_no': payment.receipt_no,
+                'payment_date': payment.payment_date,
+                'student_name': payment.student_name,
+                'father_name': payment.father_name,
+                'class_name': payment.class_name,
+                'mobile': payment.mobile,
+                'session': query.session,
+                'amount': payment.amount,
+                'payment_mode': payment.payment_mode,
+                'transaction_id': payment.transaction_id,
+                'bank_name': payment.bank_name,
+                'remarks': payment.remarks,
+                'collected_by': payment.collected_by,
+                'created_at': payment.created_at,
+            }
+            
+            return Response(receipt_data)
+            
+        except AdmissionQuery.DoesNotExist:
+            return Response(
+                {'detail': 'Admission query not found.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+
+class ApproveAdmissionView(APIView):
+    permission_classes = [IsSchoolStaff]
+    
+    def post(self, request, pk):
+        """Approve admission - creates student entry and fee details"""
+        try:
+            from apps.masters.models import Student
+            from django.db import connections
+            from utils.tenant import get_current_tenant
+            
+            query = AdmissionQuery.objects.get(pk=pk)
+            
+            # Check if registration fee is paid
+            if not hasattr(query, 'registration_payment'):
+                return Response(
+                    {'detail': 'Registration fee must be paid before admission approval.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Check if already approved
+            if query.adm_status == 'approved':
+                return Response(
+                    {'detail': 'This admission is already approved.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Generate admission number
+            year = query.session.split('-')[0]
+            last_student = Student.objects.filter(admission_no__startswith=f'STU{year}').order_by('-admission_no').first()
+            if last_student:
+                last_num = int(last_student.admission_no[-4:])
+                new_num = last_num + 1
+            else:
+                new_num = 1
+            admission_no = f'STU{year}{new_num:04d}'
+            
+            # Create student record
+            student = Student.objects.create(
+                admission_no=admission_no,
+                student_name=query.student_name,
+                father_name=query.father_name,
+                mother_name=query.mother_name,
+                date_of_birth=query.date_of_birth,
+                gender=query.gender.upper()[0] if query.gender else 'M',
+                father_mobile=query.father_mobile,
+                mother_mobile=query.mother_mobile,
+                father_email=query.father_email or '',
+                mother_email=query.mother_email or '',
+                class_id=query.class_id,
+                class_name=query.class_name,
+                session=query.session,
+                admission_date=timezone.now().date(),
+                status='active'
+            )
+            
+            # Fetch fee structure for this class (get up to 20 heads)
+            fee_amounts = FeeAmount.objects.filter(
+                class_id=query.class_id,
+                type='new',
+                session=query.session
+            ).order_by('id')[:20]  # Max 20 heads
+            
+            # Build dynamic column assignments for student_fee_details
+            # Structure: head1_apr, head1_may, ..., head20_mar
+            fee_data = {'stu_id': student.id, 'session': query.session}
+            
+            months_map = {
+                'april': 'apr', 'may': 'may', 'june': 'jun', 
+                'july': 'jul', 'august': 'aug', 'september': 'sep',
+                'october': 'oct', 'november': 'nov', 'december': 'dec',
+                'january': 'jan', 'february': 'feb', 'march': 'mar'
+            }
+            
+            # Map each fee head to head1, head2, etc.
+            for idx, fee in enumerate(fee_amounts, start=1):
+                head_num = idx  # head1, head2, ...
+                for month_full, month_abbr in months_map.items():
+                    col_name = f'head{head_num}_{month_abbr}'
+                    fee_data[col_name] = getattr(fee, month_full, 0)
+            
+            # Get the tenant database connection
+            tenant_db = get_current_tenant()
+            
+            # Insert into student_fee_details using raw SQL with tenant connection
+            columns = list(fee_data.keys())
+            placeholders = ['%s'] * len(columns)
+            values = [fee_data[col] for col in columns]
+            
+            insert_sql = f"""
+                INSERT INTO student_fee_details ({', '.join(columns)})
+                VALUES ({', '.join(placeholders)})
+            """
+            
+            with connections[tenant_db].cursor() as cursor:
+                cursor.execute(insert_sql, values)
+            
+            # Update admission query status
+            query.adm_status = 'approved'
+            query.status = 'admitted'
+            query.save()
+            
+            return Response({
+                'message': 'Admission approved successfully',
+                'student_id': student.id,
+                'admission_no': admission_no,
+                'student_name': student.student_name,
+                'fee_heads_assigned': len(fee_amounts)
+            }, status=status.HTTP_200_OK)
+            
+        except AdmissionQuery.DoesNotExist:
+            return Response(
+                {'detail': 'Admission query not found.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            import traceback
+            print(traceback.format_exc())
+            return Response(
+                {'detail': f'Error approving admission: {str(e)}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+
+class UnapproveAdmissionView(APIView):
+    permission_classes = [IsSchoolStaff]
+    
+    def post(self, request, pk):
+        """Unapprove admission - revert to registered status"""
+        try:
+            query = AdmissionQuery.objects.get(pk=pk)
+            
+            remarks = request.data.get('remarks', '')
+            if not remarks:
+                return Response(
+                    {'detail': 'Remarks are required for unapproving admission.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Update status
+            query.adm_status = 'unapproved'
+            query.status = 'rejected'
+            query.remarks = remarks
+            query.save()
+            
+            return Response({
+                'message': 'Admission unapproved successfully',
+                'query_id': query.id,
+                'adm_status': query.adm_status
+            }, status=status.HTTP_200_OK)
+            
+        except AdmissionQuery.DoesNotExist:
+            return Response(
+                {'detail': 'Admission query not found.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            return Response(
+                {'detail': f'Error unapproving admission: {str(e)}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+
+
+class StudentSearchView(APIView):
+    """Search student by admission number"""
+    permission_classes = [IsSchoolStaff]
+    
+    def get(self, request):
+        from apps.masters.models import Student
+        
+        admission_no = request.query_params.get('admission_no', '').strip()
+        
+        if not admission_no:
+            return Response(
+                {'detail': 'Admission number is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            student = Student.objects.get(admission_no=admission_no)
+            return Response({
+                'id': student.id,
+                'admission_no': student.admission_no,
+                'student_name': student.student_name,
+                'father_name': student.father_name,
+                'class_name': student.class_name,
+                'session': student.session,
+                'status': student.status
+            })
+        except Student.DoesNotExist:
+            return Response(
+                {'detail': 'Student not found with this admission number'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+
+class StudentsByClassView(APIView):
+    """Get all students by class"""
+    permission_classes = [IsSchoolStaff]
+    
+    def get(self, request):
+        from apps.masters.models import Student
+        
+        class_id = request.query_params.get('class_id')
+        session = request.query_params.get('session')
+        
+        if not class_id:
+            return Response(
+                {'detail': 'class_id is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        students = Student.objects.filter(class_id=class_id, status='active')
+        
+        if session:
+            students = students.filter(session=session)
+        
+        students = students.order_by('student_name')
+        
+        data = [{
+            'id': s.id,
+            'admission_no': s.admission_no,
+            'student_name': s.student_name,
+            'father_name': s.father_name,
+            'class_name': s.class_name,
+            'session': s.session,
+            'admission_date': s.admission_date,
+            'father_mobile': s.father_mobile
+        } for s in students]
+        
+        return Response(data)
+
+
+class StudentProfileView(APIView):
+    """Get complete student profile with fee structure"""
+    permission_classes = [IsSchoolStaff]
+    
+    def get(self, request, student_id):
+        from apps.masters.models import Student
+        from django.db import connections
+        from utils.tenant import get_current_tenant
+        
+        try:
+            student = Student.objects.get(id=student_id)
+        except Student.DoesNotExist:
+            return Response(
+                {'detail': 'Student not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Get student basic info
+        profile = {
+            'id': student.id,
+            'admission_no': student.admission_no,
+            'student_name': student.student_name,
+            'father_name': student.father_name,
+            'mother_name': student.mother_name,
+            'date_of_birth': student.date_of_birth,
+            'gender': student.gender,
+            'father_mobile': student.father_mobile,
+            'mother_mobile': student.mother_mobile,
+            'father_email': student.father_email,
+            'mother_email': student.mother_email,
+            'class_id': student.class_id,
+            'class_name': student.class_name,
+            'session': student.session,
+            'admission_date': student.admission_date,
+            'status': student.status
+        }
+        
+        # Get fee structure from student_fee_details table
+        tenant_db = get_current_tenant()
+        
+        try:
+            with connections[tenant_db].cursor() as cursor:
+                cursor.execute("""
+                    SELECT * FROM student_fee_details 
+                    WHERE stu_id = %s AND session = %s
+                """, [student_id, student.session])
+                
+                columns = [col[0] for col in cursor.description]
+                row = cursor.fetchone()
+                
+                if row:
+                    fee_data = dict(zip(columns, row))
+                    
+                    # Get fee head names from fee_amount table
+                    fee_heads = FeeAmount.objects.filter(
+                        class_id=student.class_id,
+                        session=student.session,
+                        type='new'
+                    ).order_by('id')[:20]
+                    
+                    # Format fee structure for frontend
+                    fee_structure = []
+                    months = ['apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec', 'jan', 'feb', 'mar']
+                    month_names = ['April', 'May', 'June', 'July', 'August', 'September', 
+                                  'October', 'November', 'December', 'January', 'February', 'March']
+                    
+                    for idx, fee_head in enumerate(fee_heads, start=1):
+                        head_fees = {
+                            'head_number': idx,
+                            'head_name': fee_head.head_name,
+                            'months': []
+                        }
+                        
+                        total = 0
+                        for month, month_name in zip(months, month_names):
+                            col_name = f'head{idx}_{month}'
+                            amount = float(fee_data.get(col_name, 0))
+                            total += amount
+                            head_fees['months'].append({
+                                'month': month_name,
+                                'amount': amount
+                            })
+                        
+                        head_fees['annual_total'] = total
+                        fee_structure.append(head_fees)
+                    
+                    profile['fee_structure'] = fee_structure
+                    profile['has_fee_structure'] = True
+                else:
+                    profile['fee_structure'] = []
+                    profile['has_fee_structure'] = False
+                    
+        except Exception as e:
+            print(f"Error fetching fee structure: {e}")
+            profile['fee_structure'] = []
+            profile['has_fee_structure'] = False
+        
+        return Response(profile)

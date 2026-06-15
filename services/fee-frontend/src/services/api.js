@@ -108,6 +108,10 @@ export const feeApi = {
   updateQuery:        (id, data) => api.patch(`/fees/admission-queries/${id}/`, data),
   deleteQuery:        (id) => api.delete(`/fees/admission-queries/${id}/`),
   updateQueryStatus:  (id, data) => api.patch(`/fees/admission-queries/${id}/status/`, data),
+  payRegistrationFee: (data) => api.post('/fees/admission-queries/pay-registration/', data),
+  getRegistrationReceipt: (id) => api.get(`/fees/admission-queries/${id}/receipt/`),
+  approveAdmission:   (id) => api.post(`/fees/admission-queries/${id}/approve/`),
+  unapproveAdmission: (id, remarks) => api.post(`/fees/admission-queries/${id}/unapprove/`, { remarks }),
   /* Masters - for convenience */
   classes:            (params) => api.get('/masters/classes/', { params }),
 }
@@ -119,7 +123,13 @@ export const masterApi = {
   updateClass:        (id, data) => api.patch(`/masters/classes/${id}/`, data),
   deleteClass:        (id) => api.delete(`/masters/classes/${id}/`),
   toggleClassStatus:  (id) => api.post(`/masters/classes/${id}/toggle-status/`),
-  /* Section Master */
+  /* Section Master (Independent) */
+  getSectionMaster:       () => api.get('/masters/section-master/'),
+  createSectionMaster:    (data) => api.post('/masters/section-master/', data),
+  updateSectionMaster:    (id, data) => api.patch(`/masters/section-master/${id}/`, data),
+  deleteSectionMaster:    (id) => api.delete(`/masters/section-master/${id}/`),
+  toggleSectionMasterStatus: (id) => api.post(`/masters/section-master/${id}/toggle-status/`),
+  /* Class Section Master (with class relationship) */
   sections:           (params) => api.get('/masters/sections/', { params }),
   createSection:      (data) => api.post('/masters/sections/', data),
   updateSection:      (id, data) => api.patch(`/masters/sections/${id}/`, data),

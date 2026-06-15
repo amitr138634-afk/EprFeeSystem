@@ -1,10 +1,17 @@
 from rest_framework import serializers
-from .models import ClassMaster, ClassSectionMaster
+from .models import ClassMaster, ClassSectionMaster, SectionMaster
 
 
 class ClassMasterSerializer(serializers.ModelSerializer):
     class Meta:
         model = ClassMaster
+        fields = '__all__'
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class SectionMasterSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SectionMaster
         fields = '__all__'
         read_only_fields = ['id', 'created_at', 'updated_at']
 
@@ -16,3 +23,4 @@ class ClassSectionMasterSerializer(serializers.ModelSerializer):
         model = ClassSectionMaster
         fields = '__all__'
         read_only_fields = ['id', 'created_at', 'updated_at']
+

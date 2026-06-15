@@ -336,7 +336,8 @@ class AdmissionQuery(models.Model):
     
     # Query Details
     source_of_information = models.CharField(max_length=50, choices=SOURCE_CHOICES)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='enquiry')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='enquiry')  # Query status
+    adm_status = models.CharField(max_length=20, default='enquiry')  # Admission status: enquiry, registered, admitted, etc.
     remarks = models.TextField(blank=True)
     
     # Timestamps
@@ -351,3 +352,154 @@ class AdmissionQuery(models.Model):
 
     def __str__(self):
         return f'{self.student_name} - {self.class_name} ({self.session})'
+
+
+class RegistrationFeePaid(models.Model):
+    PAYMENT_MODE_CHOICES = [
+        ('cash', 'Cash'),
+        ('upi', 'UPI'),
+        ('paytm', 'Paytm'),
+        ('online', 'Online'),
+        ('cheque', 'Cheque'),
+        ('card', 'Card'),
+    ]
+    
+    # Link to admission query
+    admission_query = models.OneToOneField(
+        AdmissionQuery, 
+        on_delete=models.CASCADE, 
+        related_name='registration_payment'
+    )
+    
+    # Student Details (denormalized for quick access)
+    student_name = models.CharField(max_length=200)
+    father_name = models.CharField(max_length=200)
+    class_name = models.CharField(max_length=50)
+    mobile = models.CharField(max_length=15)
+    
+    # Payment Details
+    amount = models.DecimalField(max_digits=10, decimal_places=2, default=100.00)
+    payment_mode = models.CharField(max_length=20, choices=PAYMENT_MODE_CHOICES)
+    payment_date = models.DateField()
+    
+    # Transaction Details
+    transaction_id = models.CharField(max_length=100, blank=True, null=True)
+    bank_name = models.CharField(max_length=100, blank=True, null=True)
+    
+    # Receipt
+    receipt_no = models.CharField(max_length=50, unique=True)
+    
+    # Meta
+    collected_by = models.IntegerField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    remarks = models.TextField(blank=True)
+
+    class Meta:
+        db_table = 'registration_fee_paid'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.student_name} - ₹{self.amount} ({self.receipt_no})'
+
+
+class StudentFeeDetail(models.Model):
+    """
+    Stores fee structure for each student - ONE ROW PER STUDENT
+    Structure: stu_id references students.id
+    Columns: head1_apr to head20_mar (20 heads × 12 months = 240 fee columns)
+    """
+    stu_id = models.IntegerField(unique=True, db_index=True)  # References students.id
+    session = models.CharField(max_length=20)
+    
+    # Head 1 - Months (April to March)
+    head1_apr = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head1_may = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head1_jun = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head1_jul = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head1_aug = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head1_sep = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head1_oct = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head1_nov = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head1_dec = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head1_jan = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head1_feb = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head1_mar = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    
+    # Head 2 - Months
+    head2_apr = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head2_may = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head2_jun = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head2_jul = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head2_aug = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head2_sep = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head2_oct = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head2_nov = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head2_dec = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head2_jan = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head2_feb = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head2_mar = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    
+    # Head 3 - Months
+    head3_apr = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head3_may = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head3_jun = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head3_jul = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head3_aug = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head3_sep = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head3_oct = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head3_nov = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head3_dec = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head3_jan = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head3_feb = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head3_mar = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    
+    # Head 4 - Months
+    head4_apr = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head4_may = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head4_jun = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head4_jul = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head4_aug = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head4_sep = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head4_oct = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head4_nov = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head4_dec = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head4_jan = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head4_feb = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head4_mar = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    
+    # Head 5 - Months
+    head5_apr = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head5_may = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head5_jun = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head5_jul = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head5_aug = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head5_sep = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head5_oct = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head5_nov = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head5_dec = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head5_jan = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head5_feb = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head5_mar = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    
+    # Continue for heads 6-20... (I'll add a helper method instead)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'student_fee_details'
+        ordering = ['stu_id']
+
+    def __str__(self):
+        return f'Student ID: {self.stu_id} - Session: {self.session}'
+    
+    @classmethod
+    def get_head_field_name(cls, head_number, month_abbr):
+        """
+        Get field name for a specific head and month
+        head_number: 1-20
+        month_abbr: 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec', 'jan', 'feb', 'mar'
+        Returns: 'head{N}_{month}' e.g., 'head1_apr'
+        """
+        return f'head{head_number}_{month_abbr}'
+

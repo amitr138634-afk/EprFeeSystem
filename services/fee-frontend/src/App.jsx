@@ -23,6 +23,12 @@ import AdmissionQuery from './pages/frontdesk/AdmissionQuery'
 import VisitorList from './pages/frontdesk/VisitorList'
 import Feedbacks from './pages/frontdesk/Feedbacks'
 import ClassMaster from './pages/masters/ClassMaster'
+import SectionMaster from './pages/masters/SectionMaster'
+import SecMaster from './pages/masters/SecMaster'
+
+// Fee Management
+import PayFeeNew from './pages/feemgmt/PayFee'
+import StudentProfile from './pages/feemgmt/StudentProfile'
 
 // Placeholder for unbuilt pages
 import { Clock } from 'lucide-react'
@@ -67,6 +73,10 @@ export default function App() {
         <Route path="fees/late-fine"          element={<CS title="Late Fine Calculation" />} />
         <Route path="fees/reverify"           element={<CS title="Reverify Payment" />} />
         <Route path="fees/bill-generation"    element={<CS title="Fee Bill Generation" />} />
+
+        {/* ── Fee Management (New) ───────────────────────────────── */}
+        <Route path="feemgmt/pay-fee"         element={<PayFeeNew />} />
+        <Route path="feemgmt/student-profile/:studentId" element={<StudentProfile />} />
 
         {/* ── Books ─────────────────────────────────────────────── */}
         <Route path="fees/books/sets"         element={<BookSets />} />
@@ -154,7 +164,8 @@ export default function App() {
 
         {/* ── Master ─────────────────────────────────────────────── */}
         <Route path="masters/classes"                 element={<ClassMaster />} />
-        <Route path="masters/sections"                element={<CS title="Class Section Master" />} />
+        <Route path="masters/sec-master"              element={<SecMaster />} />
+        <Route path="masters/sections"                element={<SectionMaster />} />
       </Route>
     </Routes>
   )

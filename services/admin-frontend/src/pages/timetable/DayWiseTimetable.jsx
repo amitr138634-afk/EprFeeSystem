@@ -1,161 +1,198 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { CalendarDays } from 'lucide-react'
-import { timetableApi } from '../../services/api'
+import { Calendar, Printer } from 'lucide-react'
+import api, { studentApi } from '../../services/api'
 
 const DAYS = [
-  { label: 'Monday', value: 1 },
-  { label: 'Tuesday', value: 2 },
-  { label: 'Wednesday', value: 3 },
-  { label: 'Thursday', value: 4 },
-  { label: 'Friday', value: 5 },
-  { label: 'Saturday', value: 6 },
+  { value: 'MON', label: 'Monday' },
+  { value: 'TUE', label: 'Tuesday' },
+  { value: 'WED', label: 'Wednesday' },
+  { value: 'THU', label: 'Thursday' },
+  { value: 'FRI', label: 'Friday' }
 ]
 
-// Today's day (1=Mon...6=Sat), default to Monday if weekend
-function getTodayDay() {
-  const d = new Date().getDay() // 0=Sun, 1=Mon...6=Sat
-  if (d === 0) return 1 // Sunday -> Monday
-  if (d > 6) return 6
-  return d
-}
-
 export default function DayWiseTimetable() {
-  const [day, setDay] = useState(getTodayDay())
+  const currentYear = new Date().getFullYear()
+  const [sessionYear, setSessionYear] = useState(`${currentYear}-${currentYear + 1}`)
+  const [selectedDay, setSelectedDay] = useState('MON')
+  const [showTimetable, setShowTimetable] = useState(false)
 
-  const { data: allEntries = [], isLoading } = useQuery({
-    queryKey: ['timetable-day', day],
-    queryFn: () => timetableApi.list({ day }).then(r => r.data),
-    enabled: !!day,
+  // Fetch Classes
+  const { data: classes = [] } = useQuery({
+    queryKey: ['classes'],
+    queryFn: () => studentApi.classMasters().then(r => r.data.results || r.data),
   })
 
-  // Group by class + section
-  const groups = {}
-  allEntries.forEach(entry => {
-    const className = entry.class_name || entry.class?.name || `Class ${entry.class_id}`
-    const sectionName = entry.section_name || entry.section?.name || ''
-    const key = `${className}${sectionName ? ' - ' + sectionName : ''}`
-    if (!groups[key]) groups[key] = { label: key, entries: [] }
-    groups[key].entries.push(entry)
+  // Fetch Periods
+  const { data: allPeriods = [] } = useQuery({
+    queryKey: ['periods'],
+    queryFn: () => api.get('/timetable/periods/').then(r => r.data.results || r.data),
   })
 
-  // Sort entries within each group by period order
-  Object.values(groups).forEach(g => {
-    g.entries.sort((a, b) => (a.period_order ?? a.period_id ?? 999) - (b.period_order ?? b.period_id ?? 999))
+  const periods = allPeriods.filter(p => !p.is_break && p.status)
+
+  // Fetch Day's Timetable
+  const { data: timetableEntries = [], isLoading } = useQuery({
+    queryKey: ['day-timetable', selectedDay, sessionYear],
+    queryFn: () => api.get('/timetable/', {
+      params: { day: selectedDay, session_year: sessionYear }
+    }).then(r => r.data.results || r.data),
+    enabled: showTimetable,
   })
 
-  const groupKeys = Object.keys(groups).sort()
+  const handleView = () => {
+    setShowTimetable(true)
+  }
 
-  // Flat rows for the main table (alternating class groups)
-  const rows = []
-  groupKeys.forEach(key => {
-    const group = groups[key]
-    group.entries.forEach((entry, idx) => {
-      rows.push({ ...entry, _groupLabel: key, _isFirstInGroup: idx === 0, _groupSize: group.entries.length })
-    })
-  })
+  const getTimetableCellForClass = (classId, periodId) => {
+    return timetableEntries.find(entry => 
+      entry.class_ref === classId && entry.period === periodId
+    )
+  }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-xl font-bold text-gray-800">Day Wise Timetable</h1>
-        <p className="text-sm text-gray-500">View all classes scheduled for a specific day</p>
+      <div className="bg-gradient-to-r from-purple-600 to-purple-700 text-white p-6 rounded-lg shadow-lg print:hidden">
+        <h1 className="text-2xl font-bold flex items-center gap-3">
+          <Calendar size={32} />
+          Day Wise Timetable
+        </h1>
+        <p className="text-purple-100 mt-1">View complete timetable for a specific day</p>
       </div>
 
-      {/* Day selector */}
-      <div className="card p-4">
-        <div className="flex flex-wrap gap-2 items-center">
-          <span className="text-sm font-medium text-gray-600 mr-2 flex items-center gap-1">
-            <CalendarDays size={15} /> Day:
-          </span>
-          {DAYS.map(d => (
-            <button
-              key={d.value}
-              onClick={() => setDay(d.value)}
-              className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                day === d.value
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
+      {/* Filters */}
+      <div className="bg-white rounded-lg shadow p-6 print:hidden">
+        <div className="grid grid-cols-3 gap-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Select Day <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={selectedDay}
+              onChange={(e) => {
+                setSelectedDay(e.target.value)
+                setShowTimetable(false)
+              }}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
             >
-              {d.label}
+              {DAYS.map(day => (
+                <option key={day.value} value={day.value}>{day.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Session Year
+            </label>
+            <input
+              type="text"
+              value={sessionYear}
+              onChange={(e) => setSessionYear(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+              placeholder="2024-2025"
+            />
+          </div>
+
+          <div className="flex items-end gap-3">
+            <button
+              onClick={handleView}
+              className="flex-1 px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center justify-center gap-2"
+            >
+              <Calendar size={20} />
+              View Day Schedule
             </button>
-          ))}
+            {showTimetable && (
+              <button
+                onClick={() => window.print()}
+                className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center gap-2"
+              >
+                <Printer size={20} />
+                Print
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Summary */}
-      {!isLoading && allEntries.length > 0 && (
-        <div className="flex gap-4 text-sm text-gray-500 px-1">
-          <span>
-            <span className="font-semibold text-gray-700">{allEntries.length}</span> total entries
-          </span>
-          <span>
-            <span className="font-semibold text-gray-700">{groupKeys.length}</span> class-sections
-          </span>
+      {/* Timetable Display */}
+      {showTimetable && (
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          {/* Print Header */}
+          <div className="hidden print:block p-6 border-b">
+            <h2 className="text-2xl font-bold text-center">Day Wise Timetable</h2>
+            <p className="text-center text-gray-600 mt-2">
+              Day: {DAYS.find(d => d.value === selectedDay)?.label} | Session: {sessionYear}
+            </p>
+          </div>
+
+          {isLoading ? (
+            <div className="p-12 text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto"></div>
+              <p className="mt-4 text-gray-600">Loading schedule...</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="bg-purple-50">
+                    <th className="border border-gray-300 px-4 py-3 text-left font-semibold text-gray-700 bg-purple-100 min-w-[120px]">
+                      Class / Period
+                    </th>
+                    {periods.map(period => (
+                      <th key={period.id} className="border border-gray-300 px-3 py-3 text-center font-semibold text-gray-700 min-w-[180px]">
+                        <div className="text-sm">{period.name}</div>
+                        <div className="text-xs text-gray-600 mt-1 font-normal">
+                          {period.start_time} - {period.end_time}
+                        </div>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {classes.map((classItem, idx) => (
+                    <tr key={classItem.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                      <td className="border border-gray-300 px-4 py-4 bg-purple-50 font-semibold">
+                        <div className="text-sm text-gray-800">{classItem.class_name}</div>
+                      </td>
+                      {periods.map(period => {
+                        const entry = getTimetableCellForClass(classItem.id, period.id)
+                        
+                        return (
+                          <td key={`${classItem.id}-${period.id}`} className="border border-gray-300 p-3 align-top">
+                            {entry ? (
+                              <div className="space-y-1">
+                                {entry.subject_name && (
+                                  <div className="text-sm font-medium text-purple-900">
+                                    📚 {entry.subject_name}
+                                  </div>
+                                )}
+                                {entry.teacher_name && (
+                                  <div className="text-xs text-gray-600">
+                                    👨‍🏫 {entry.teacher_name}
+                                  </div>
+                                )}
+                                {entry.room && (
+                                  <div className="text-xs text-gray-500">
+                                    🚪 {entry.room}
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="text-center text-gray-400 text-sm py-2">-</div>
+                            )}
+                          </td>
+                        )
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
-
-      {/* Table */}
-      <div className="card">
-        <div className="table-container">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Class / Section</th>
-                <th>Period</th>
-                <th>Subject</th>
-                <th>Teacher</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading ? (
-                <tr><td colSpan={4} className="text-center py-8 text-gray-400">Loading...</td></tr>
-              ) : rows.length === 0 ? (
-                <tr>
-                  <td colSpan={4} className="text-center py-8 text-gray-400">
-                    No timetable entries for {DAYS.find(d => d.value === day)?.label}
-                  </td>
-                </tr>
-              ) : (
-                rows.map((row, i) => (
-                  <tr key={`${row.id}-${i}`} className={row._isFirstInGroup && i !== 0 ? 'border-t-2 border-gray-200' : ''}>
-                    {row._isFirstInGroup ? (
-                      <td rowSpan={row._groupSize} className="font-semibold text-gray-800 bg-gray-50 align-top pt-3">
-                        {row._groupLabel}
-                      </td>
-                    ) : null}
-                    <td className="text-gray-600">
-                      {row.period_name || row.period?.name || `Period ${row.period_id}`}
-                      {(row.period_start_time || row.period?.start_time) && (
-                        <span className="text-xs text-gray-400 ml-1">
-                          ({(row.period_start_time || row.period?.start_time)?.slice(0,5)})
-                        </span>
-                      )}
-                    </td>
-                    <td>
-                      <span className="font-medium text-blue-700">
-                        {row.subject_name || row.subject?.name || '—'}
-                      </span>
-                      {(row.subject_code || row.subject?.code) && (
-                        <span className="text-xs text-gray-400 ml-1.5">
-                          ({row.subject_code || row.subject?.code})
-                        </span>
-                      )}
-                    </td>
-                    <td className="text-gray-600">
-                      {row.teacher_name || row.teacher?.full_name || (
-                        <span className="text-gray-300 italic text-xs">Unassigned</span>
-                      )}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
     </div>
   )
 }

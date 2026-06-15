@@ -25,19 +25,19 @@ class TimetableListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsSchoolStaff]
 
     def get_queryset(self):
-        qs = Timetable.objects.select_related('class_ref', 'section', 'subject', 'teacher', 'period')
+        qs = Timetable.objects.select_related('class_ref', 'subject', 'teacher', 'period').prefetch_related('sections')
         params = self.request.query_params
         if params.get('class_id'):
             qs = qs.filter(class_ref_id=params['class_id'])
         if params.get('section_id'):
-            qs = qs.filter(section_id=params['section_id'])
+            qs = qs.filter(sections__id=params['section_id'])
         if params.get('teacher_id'):
             qs = qs.filter(teacher_id=params['teacher_id'])
         if params.get('day'):
             qs = qs.filter(day=params['day'])
         if params.get('session_year'):
             qs = qs.filter(session_year=params['session_year'])
-        return qs
+        return qs.distinct()  # distinct() because ManyToMany can create duplicates
 
 
 class TimetableDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -75,11 +75,16 @@ class SubstituteTeacherListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         qs = SubstituteTeacher.objects.select_related(
-            'original_teacher', 'substitute_teacher', 'timetable'
+            'original_teacher', 
+            'substitute_teacher', 
+            'timetable',
+            'timetable__class_ref',
+            'timetable__period',
+            'timetable__subject'
         )
         params = self.request.query_params
         if params.get('date'):
             qs = qs.filter(date=params['date'])
         if params.get('month') and params.get('year'):
             qs = qs.filter(date__month=params['month'], date__year=params['year'])
-        return qs
+        return qs.order_by('-date')

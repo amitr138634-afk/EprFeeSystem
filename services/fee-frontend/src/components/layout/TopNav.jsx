@@ -1,6 +1,6 @@
 import { NavLink, Link, useNavigate, useLocation } from 'react-router-dom'
 import { useState, useRef, useEffect } from 'react'
-import { LogOut, ChevronDown, IndianRupee } from 'lucide-react'
+import { LogOut, ChevronDown, IndianRupee, Plus, Menu, X } from 'lucide-react'
 import clsx from 'clsx'
 import toast from 'react-hot-toast'
 import useAuthStore from '../../store/authStore'
@@ -332,9 +332,159 @@ function NavEntry({ entry }) {
   )
 }
 
+/* ──────────────────────────────────────────────────────────────────────────
+ * Mobile nav (drawer) — used below the `lg` breakpoint
+ * ──────────────────────────────────────────────────────────────────────── */
+function MobileLink({ item, onNavigate }) {
+  return (
+    <NavLink
+      to={item.to}
+      onClick={onNavigate}
+      className={({ isActive }) => clsx(
+        'flex items-center gap-2 ml-1 px-3 py-2 rounded-lg text-sm transition-colors duration-100',
+        isActive
+          ? 'bg-green-50 text-green-700 font-medium'
+          : item.accent
+            ? 'text-green-700 font-medium hover:bg-green-50'
+            : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+      )}
+    >
+      {item.accent && <Plus size={14} className="shrink-0" />}
+      {item.label}
+    </NavLink>
+  )
+}
+
+function MobileNavEntry({ entry, onNavigate }) {
+  const location = useLocation()
+  const allItems = entry.groups ? entry.groups.flatMap(g => g.items) : (entry.items || [])
+  const active = entry.to
+    ? location.pathname.startsWith(entry.to)
+    : allItems.some(it => location.pathname.startsWith(it.to))
+  const [open, setOpen] = useState(active)
+
+  if (!entry.items && !entry.groups) {
+    return (
+      <NavLink
+        to={entry.to}
+        end={entry.end}
+        onClick={onNavigate}
+        className={({ isActive }) => clsx(
+          'block px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+          isActive ? 'bg-green-50 text-green-700' : 'text-gray-700 hover:bg-gray-50'
+        )}
+      >
+        {entry.label}
+      </NavLink>
+    )
+  }
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        className={clsx(
+          'w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors',
+          active ? 'text-green-700' : 'text-gray-800 hover:bg-gray-50'
+        )}
+      >
+        {entry.label}
+        <ChevronDown size={15} className={clsx('transition-transform duration-200', open && 'rotate-180')} />
+      </button>
+      {open && (
+        <div className="pb-1">
+          {entry.groups
+            ? entry.groups.map(group => (
+                <div key={group.title} className="mb-1">
+                  <p className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-widest text-green-600">
+                    {group.title}
+                  </p>
+                  {group.items.map(item => <MobileLink key={item.to} item={item} onNavigate={onNavigate} />)}
+                </div>
+              ))
+            : entry.items.map(item => <MobileLink key={item.to} item={item} onNavigate={onNavigate} />)}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function MobileNav({ open, onClose, nav, user, brandName, panelLabel, onLogout }) {
+  useEffect(() => {
+    if (!open) return
+    const onKey = e => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', onKey)
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = ''
+    }
+  }, [open, onClose])
+
+  return (
+    <div className="lg:hidden" aria-hidden={!open}>
+      {/* Backdrop */}
+      <div
+        onClick={onClose}
+        className={clsx(
+          'fixed inset-0 z-40 bg-black/40 transition-opacity duration-300',
+          open ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        )}
+      />
+      {/* Drawer */}
+      <aside
+        className={clsx(
+          'fixed top-0 left-0 z-50 h-full w-[82%] max-w-xs bg-white shadow-xl flex flex-col',
+          'transition-transform duration-300 ease-out',
+          open ? 'translate-x-0' : '-translate-x-full'
+        )}
+      >
+        <div className="flex items-center justify-between px-4 h-14 border-b border-gray-200 shrink-0">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-lg bg-green-600 flex items-center justify-center shrink-0">
+              <IndianRupee size={16} className="text-white" />
+            </div>
+            <div className="leading-tight min-w-0">
+              <p className="text-sm font-bold text-gray-900 leading-none truncate">{brandName}</p>
+              <p className="text-[10px] text-gray-400 leading-none mt-0.5">{panelLabel}</p>
+            </div>
+          </div>
+          <button onClick={onClose} aria-label="Close menu" className="p-2 -mr-1 rounded-lg hover:bg-gray-100 text-gray-500">
+            <X size={18} />
+          </button>
+        </div>
+
+        <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5">
+          {nav.map(entry => <MobileNavEntry key={entry.label} entry={entry} onNavigate={onClose} />)}
+        </nav>
+
+        <div className="border-t border-gray-200 p-3 shrink-0">
+          <div className="flex items-center gap-3 px-1 mb-2">
+            <div className="w-9 h-9 rounded-full bg-green-100 border border-green-200 text-green-700 flex items-center justify-center font-semibold text-sm shrink-0">
+              {(user?.full_name || 'A').charAt(0).toUpperCase()}
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-gray-900 truncate">{user?.full_name}</p>
+              <p className="text-[11px] text-gray-400 capitalize truncate">{user?.role?.replace('_', ' ')}</p>
+            </div>
+          </div>
+          <button
+            onClick={() => { onClose(); onLogout() }}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+          >
+            <LogOut size={15} /> Logout
+          </button>
+        </div>
+      </aside>
+    </div>
+  )
+}
+
 export default function TopNav() {
   const { user, logout } = useAuthStore()
   const navigate = useNavigate()
+  const [mobileOpen, setMobileOpen] = useState(false)
   const isSuperAdmin = user?.role === 'super_admin'
   const brandName = isSuperAdmin ? 'Shyam Enterprise' : (user?.school_name || 'Shyam Enterprise')
 
@@ -350,25 +500,36 @@ export default function TopNav() {
 
   return (
     <header className="sticky top-0 z-30 bg-white border-b border-gray-200">
-      <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
+      <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-3">
 
-        {/* Brand — click to go to Dashboard */}
-        <Link
-          to="/"
-          title="Go to Dashboard"
-          className="flex items-center gap-2.5 shrink-0 rounded-lg px-1 -mx-1 py-1 hover:bg-gray-50 transition-colors duration-150"
-        >
-          <div className="w-8 h-8 rounded-lg bg-green-600 flex items-center justify-center">
-            <IndianRupee size={16} className="text-white" />
-          </div>
-          <div className="leading-tight">
-            <p className="text-sm font-bold text-gray-900 leading-none">{brandName}</p>
-            <p className="text-[10px] text-gray-400 leading-none mt-0.5">Fee Panel</p>
-          </div>
-        </Link>
+        {/* Left: hamburger (mobile) + brand */}
+        <div className="flex items-center gap-1.5 min-w-0">
+          <button
+            type="button"
+            onClick={() => setMobileOpen(true)}
+            aria-label="Open menu"
+            className="lg:hidden p-2 -ml-2 rounded-lg hover:bg-gray-100 text-gray-600"
+          >
+            <Menu size={20} />
+          </button>
 
-        {/* Nav links */}
-        <nav className="flex items-center justify-center gap-0.5 flex-1 flex-wrap">
+          <Link
+            to="/"
+            title="Go to Dashboard"
+            className="flex items-center gap-2.5 min-w-0 rounded-lg px-1 py-1 hover:bg-gray-50 transition-colors duration-150"
+          >
+            <div className="w-8 h-8 rounded-lg bg-green-600 flex items-center justify-center shrink-0">
+              <IndianRupee size={16} className="text-white" />
+            </div>
+            <div className="leading-tight min-w-0">
+              <p className="text-sm font-bold text-gray-900 leading-none truncate max-w-[44vw] sm:max-w-none">{brandName}</p>
+              <p className="text-[10px] text-gray-400 leading-none mt-0.5">Fee Panel</p>
+            </div>
+          </Link>
+        </div>
+
+        {/* Center: desktop nav */}
+        <nav className="hidden lg:flex items-center justify-center gap-0.5 flex-1 flex-wrap">
           {NAV.map(entry => <NavEntry key={entry.label} entry={entry} />)}
         </nav>
 
@@ -386,12 +547,22 @@ export default function TopNav() {
           <button
             onClick={handleLogout}
             title="Logout"
-            className="p-2 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors duration-150"
+            className="hidden sm:inline-flex p-2 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors duration-150"
           >
             <LogOut size={15} />
           </button>
         </div>
       </div>
+
+      <MobileNav
+        open={mobileOpen}
+        onClose={() => setMobileOpen(false)}
+        nav={NAV}
+        user={user}
+        brandName={brandName}
+        panelLabel="Fee Panel"
+        onLogout={handleLogout}
+      />
     </header>
   )
 }

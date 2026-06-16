@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
-import toast from 'react-hot-toast'
 import { Eye, EyeOff, ArrowRight, Check, GraduationCap } from 'lucide-react'
 import useAuthStore from '../../store/authStore'
 import { authApi } from '../../services/api'
+import { notify } from '../../lib/notify'
 
 const SERVICES = [
   'Students & Admissions',
@@ -20,17 +20,39 @@ export default function Login() {
   const { login } = useAuthStore()
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
-  const { register, handleSubmit, formState: { errors } } = useForm()
+  const { register, handleSubmit, setError, clearErrors, formState: { errors } } = useForm()
+
+  // Surface a message left by the auth redirect (e.g. "session expired").
+  useEffect(() => {
+    const msg = sessionStorage.getItem('auth_message')
+    if (msg) {
+      notify.error(msg)
+      sessionStorage.removeItem('auth_message')
+    }
+  }, [])
 
   const onSubmit = async (data) => {
     setLoading(true)
+    clearErrors()
     try {
       const res = await authApi.login(data)
       login(res.data.user, { access: res.data.access, refresh: res.data.refresh })
-      toast.success(`Welcome back, ${res.data.user.full_name}!`)
+      notify.success(`Welcome back, ${res.data.user.full_name}!`, { title: 'Signed in' })
       navigate('/')
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Invalid credentials')
+      const resp = err.response?.data || {}
+      const code = Array.isArray(resp.code) ? resp.code[0] : resp.code
+      const message = (Array.isArray(resp.detail) ? resp.detail[0] : resp.detail)
+        || 'Unable to sign in. Please check your credentials and try again.'
+
+      if (code === 'user_not_found') {
+        setError('email', { type: 'server', message: 'No account found with this username or email.' })
+      } else if (code === 'wrong_password') {
+        setError('password', { type: 'server', message: 'Incorrect password. Please try again.' })
+      } else if (code === 'inactive') {
+        setError('email', { type: 'server', message })
+      }
+      notify.error(message, { title: 'Sign-in failed' })
     } finally {
       setLoading(false)
     }

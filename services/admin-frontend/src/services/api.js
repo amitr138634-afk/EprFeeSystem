@@ -42,6 +42,8 @@ export const authApi = {
   logout:            (refresh) => api.post('/auth/logout/', { refresh }),
   profile:           () => api.get('/auth/profile/'),
   changePassword:    (data) => api.post('/auth/change-password/', data),
+  changeSession:     (data) => api.post('/auth/change-session/', data),
+  listSessions:      () => api.get('/auth/sessions/'),
   listSchoolAdmins:  (params) => api.get('/auth/school-admins/', { params }),
   createSchoolAdmin: (data) => api.post('/auth/school-admins/', data),
   getSchoolAdmin:    (id) => api.get(`/auth/school-admins/${id}/`),
@@ -59,20 +61,36 @@ export const schoolApi = {
   dashboard:    () => api.get('/schools/dashboard/'),
 }
 
+export const studentsApi = {
+  list:           (params) => api.get('/students/', { params }),
+  create:         (data) => api.post('/students/', data),
+  get:            (id) => api.get(`/students/${id}/`),
+  detail:         (id) => api.get(`/students/${id}/`), // Alias for get
+  update:         (id, data) => api.patch(`/students/${id}/`, data),
+  delete:         (id) => api.delete(`/students/${id}/`),
+  getStrength:    (params) => api.get('/students/strength/', { params }),
+  classMasters:   (params) => api.get('/students/class-masters/', { params }),
+  sectionMasters: (params) => api.get('/students/section-masters/', { params }),
+}
+
 export const studentApi = {
   list:           (params) => api.get('/students/', { params }),
   create:         (data) => api.post('/students/', data),
   get:            (id) => api.get(`/students/${id}/`),
+  detail:         (id) => api.get(`/students/${id}/`), // Alias for get
   update:         (id, data) => api.patch(`/students/${id}/`, data),
   delete:         (id) => api.delete(`/students/${id}/`),
   changeSection:  (id, data) => api.post(`/students/${id}/change-section/`, data),
-  strength:       () => api.get('/students/strength/'),
+  strength:       (params) => api.get('/students/strength/', { params }),
   classes:        (params) => api.get('/students/classes/', { params }),
   createClass:    (data) => api.post('/students/classes/', data),
   updateClass:    (id, data) => api.patch(`/students/classes/${id}/`, data),
   deleteClass:    (id) => api.delete(`/students/classes/${id}/`),
   sections:       (params) => api.get('/students/sections/', { params }),
   createSection:  (data) => api.post('/students/sections/', data),
+  // Fee-backend tables
+  classMasters:   (params) => api.get('/students/class-masters/', { params }),
+  sectionMasters: (params) => api.get('/students/section-masters/', { params }),
   
   // ClassMaster/SectionMaster APIs (from fee-backend tables)
   classMasters:   (params) => api.get('/students/class-masters/', { params }),

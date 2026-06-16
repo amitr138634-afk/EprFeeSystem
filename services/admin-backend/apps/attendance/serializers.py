@@ -14,9 +14,9 @@ class StudentAttendanceSerializer(serializers.ModelSerializer):
 
 class BulkAttendanceSerializer(serializers.Serializer):
     date = serializers.DateField()
-    class_id = serializers.IntegerField()
-    section_id = serializers.IntegerField()
-    attendances = serializers.ListField(
+    class_id = serializers.IntegerField(required=False)
+    section = serializers.CharField(required=False)
+    attendance = serializers.ListField(
         child=serializers.DictField()
     )
 

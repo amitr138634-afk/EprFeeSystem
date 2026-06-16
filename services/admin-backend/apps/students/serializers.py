@@ -1,21 +1,5 @@
 from rest_framework import serializers
-from .models import Student, Class, Section, ClassMaster, ClassSectionMaster
-
-
-class SectionSerializer(serializers.ModelSerializer):
-    class_name = serializers.CharField(source='class_ref.name', read_only=True)
-
-    class Meta:
-        model = Section
-        fields = '__all__'
-
-
-class ClassSerializer(serializers.ModelSerializer):
-    sections = SectionSerializer(many=True, read_only=True)
-
-    class Meta:
-        model = Class
-        fields = ['id', 'name', 'order', 'sections']
+from .models import Student, ClassMaster, ClassSectionMaster, SessionMaster
 
 
 class ClassSectionMasterSerializer(serializers.ModelSerializer):
@@ -35,10 +19,6 @@ class ClassMasterSerializer(serializers.ModelSerializer):
 
 
 class StudentSerializer(serializers.ModelSerializer):
-    full_name = serializers.ReadOnlyField()
-    class_name = serializers.CharField(source='class_ref.name', read_only=True)
-    section_name = serializers.CharField(source='section.name', read_only=True)
-
     class Meta:
         model = Student
         fields = '__all__'
@@ -46,22 +26,39 @@ class StudentSerializer(serializers.ModelSerializer):
 
 
 class StudentListSerializer(serializers.ModelSerializer):
-    full_name = serializers.ReadOnlyField()
-    class_name = serializers.CharField(source='class_ref.name', read_only=True)
-    section_name = serializers.CharField(source='section.name', read_only=True)
-
     class Meta:
         model = Student
         fields = [
-            'id', 'admission_no', 'roll_no', 'full_name', 'first_name', 'last_name',
-            'class_name', 'section_name', 'gender', 'father_name', 'father_phone',
-            'photo', 'status', 'admission_date'
+            'id', 'admission_no', 'student_name', 'class_name', 'section',
+            'gender', 'father_name', 'father_mobile', 'status', 'admission_date', 'session', 'type'
         ]
 
 
 class ClassStrengthSerializer(serializers.Serializer):
     class_name = serializers.CharField()
-    section_name = serializers.CharField()
     total = serializers.IntegerField()
     boys = serializers.IntegerField()
     girls = serializers.IntegerField()
+
+
+class SessionMasterSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SessionMaster
+        fields = ['id', 'session_year', 'status', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at']
+    
+    def validate_session_year(self, value):
+        # Validate format: YYYY-YYYY
+        if len(value) != 9 or value[4] != '-':
+            raise serializers.ValidationError('Session year format should be YYYY-YYYY (e.g., 2024-2025)')
+        
+        try:
+            start_year = int(value[:4])
+            end_year = int(value[5:])
+            if end_year != start_year + 1:
+                raise serializers.ValidationError('End year should be start year + 1')
+        except ValueError:
+            raise serializers.ValidationError('Invalid year format')
+        
+        return value
+

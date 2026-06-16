@@ -114,6 +114,11 @@ export const feeApi = {
   unapproveAdmission: (id, remarks) => api.post(`/fees/admission-queries/${id}/unapprove/`, { remarks }),
   /* Masters - for convenience */
   classes:            (params) => api.get('/masters/classes/', { params }),
+  /* Students */
+  searchStudent:      (admissionNo) => api.get(`/fees/students/search/?admission_no=${admissionNo}`),
+  getStudentsByClass: (className) => api.get(`/fees/students/by-class/?class_name=${className}`),
+  getStudentProfile:  (studentId) => api.get(`/fees/students/${studentId}/profile/`),
+  getClasses:         () => api.get('/masters/classes/'),
 }
 
 export const masterApi = {

@@ -15,6 +15,7 @@ import CreateAdmin from './pages/superadmin/CreateAdmin'
 // School Admin — Students
 import StudentList from './pages/students/StudentList'
 import StudentStrength from './pages/students/StudentStrength'
+import ViewStudent from './pages/students/ViewStudent'
 import ClassMaster from './pages/students/ClassMaster'
 
 // School Admin — Staff
@@ -118,6 +119,7 @@ export default function App() {
 
         {/* ── Students ─────────────────────────────────────────────── */}
         <Route path="students"          element={<SR roles={SCHOOL_ROLES}><StudentList /></SR>} />
+        <Route path="students/view/:id" element={<SR roles={SCHOOL_ROLES}><ViewStudent /></SR>} />
         <Route path="students/strength" element={<SR roles={SCHOOL_ROLES}><StudentStrength /></SR>} />
         <Route path="students/classes"  element={<SR roles={ADMIN_ONLY}><ClassMaster /></SR>} />
 

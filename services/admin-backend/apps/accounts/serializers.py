@@ -4,6 +4,8 @@ from .models import User
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    session_id = serializers.IntegerField(required=False, allow_null=True, write_only=True)
+    
     @classmethod
     def get_token(cls, user):
         token = super().get_token(user)
@@ -31,9 +33,13 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             except User.DoesNotExist:
                 pass
 
+        # Get session_id from request
+        session_id = attrs.pop('session_id', None)
+
         data = super().validate(attrs)
         if not self.user.is_active:
             raise serializers.ValidationError({'detail': 'Account is inactive.'})
+        
         school_name = ''
         if self.user.school_id:
             try:
@@ -41,6 +47,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
                 school_name = School.objects.get(pk=self.user.school_id).name
             except Exception:
                 pass
+        
         data['user'] = {
             'id': self.user.id,
             'email': self.user.email,
@@ -50,7 +57,60 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             'school_id': self.user.school_id,
             'school_name': school_name,
         }
+        
+        # Get session - either from session_id or default to first active session
+        try:
+            from apps.students.models import SessionMaster
+            if session_id:
+                selected_session = SessionMaster.objects.filter(
+                    id=session_id,
+                    status=True
+                ).first()
+            else:
+                # Default to first active session (latest year)
+                selected_session = SessionMaster.objects.filter(
+                    status=True
+                ).order_by('-session_year').first()
+            
+            if selected_session:
+                data['current_session'] = {
+                    'id': selected_session.id,
+                    'session_year': selected_session.session_year,
+                }
+                # Add to JWT token
+                data['access'] = self._add_session_to_token(data['access'], selected_session)
+                data['refresh'] = self._add_session_to_token(data['refresh'], selected_session)
+            else:
+                data['current_session'] = None
+            
+            # Also return available sessions list
+            active_sessions = SessionMaster.objects.filter(status=True).order_by('-session_year')
+            data['available_sessions'] = [{
+                'id': s.id,
+                'session_year': s.session_year,
+            } for s in active_sessions]
+            
+        except Exception:
+            data['current_session'] = None
+            data['available_sessions'] = []
+        
         return data
+    
+    def _add_session_to_token(self, token_str, session):
+        """Add session info to existing JWT token"""
+        from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
+        try:
+            # Decode token
+            if 'access' in self.context.get('request', {}).path:
+                token = AccessToken(token_str)
+            else:
+                token = RefreshToken(token_str)
+            
+            token['current_session'] = session.session_year
+            token['session_id'] = session.id
+            return str(token)
+        except:
+            return token_str
 
 
 class UserSerializer(serializers.ModelSerializer):

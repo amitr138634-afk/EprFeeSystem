@@ -1,205 +1,318 @@
-import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { attendanceApi, studentApi } from '../../services/api'
-
-const MONTHS = [
-  { value: 1,  label: 'January' },  { value: 2,  label: 'February' },
-  { value: 3,  label: 'March' },    { value: 4,  label: 'April' },
-  { value: 5,  label: 'May' },      { value: 6,  label: 'June' },
-  { value: 7,  label: 'July' },     { value: 8,  label: 'August' },
-  { value: 9,  label: 'September' },{ value: 10, label: 'October' },
-  { value: 11, label: 'November' }, { value: 12, label: 'December' },
-]
-
-function PercentageBadge({ value }) {
-  const pct = parseFloat(value) || 0
-  if (pct >= 75) return <span className="badge badge-green">{pct.toFixed(1)}%</span>
-  if (pct >= 50) return <span className="badge badge-yellow">{pct.toFixed(1)}%</span>
-  return <span className="badge badge-red">{pct.toFixed(1)}%</span>
-}
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Calendar, TrendingUp, Printer, Download } from "lucide-react";
+import { attendanceApi, studentsApi } from "../../services/api";
 
 export default function MonthlyAttendance() {
-  const now = new Date()
-  const [classId,   setClassId]   = useState('')
-  const [sectionId, setSectionId] = useState('')
-  const [month,     setMonth]     = useState(now.getMonth() + 1)
-  const [year,      setYear]      = useState(now.getFullYear())
+  const currentDate = new Date();
+  const [filters, setFilters] = useState({
+    month: (currentDate.getMonth() + 1).toString().padStart(2, '0'),
+    year: currentDate.getFullYear().toString(),
+    classId: '',
+    section: '',
+  });
 
-  const { data: classes = [] } = useQuery({
-    queryKey: ['classes'],
-    queryFn: () => studentApi.classes().then(r => r.data.results || r.data),
-  })
+  // Fetch classes
+  const { data: classesResponse } = useQuery({
+    queryKey: ['classMasters'],
+    queryFn: async () => {
+      const response = await studentsApi.classMasters();
+      return response.data;
+    },
+  });
 
-  const { data: sections = [] } = useQuery({
-    queryKey: ['sections', classId],
-    queryFn: () => studentApi.sections({ class_id: classId }).then(r => r.data.results || r.data),
-    enabled: !!classId,
-  })
+  let classes = [];
+  if (Array.isArray(classesResponse)) {
+    classes = classesResponse;
+  } else if (classesResponse?.results) {
+    classes = classesResponse.results;
+  } else if (classesResponse?.data) {
+    classes = Array.isArray(classesResponse.data) ? classesResponse.data : [];
+  }
 
-  const { data: summary = [], isLoading, isFetching } = useQuery({
-    queryKey: ['attendance-summary', classId, sectionId, month, year],
-    queryFn:  () =>
-      attendanceApi.summary({ class_id: classId, section_id: sectionId, month, year })
-        .then(r => r.data.results || r.data),
-    enabled: !!classId && !!sectionId,
-  })
+  // Fetch sections
+  const { data: sectionsResponse } = useQuery({
+    queryKey: ['sectionMasters', filters.classId],
+    queryFn: async () => {
+      const response = await studentsApi.sectionMasters({ class_id: filters.classId });
+      return response.data;
+    },
+    enabled: !!filters.classId,
+  });
 
-  const loading = isLoading || isFetching
+  let sections = [];
+  if (Array.isArray(sectionsResponse)) {
+    sections = sectionsResponse;
+  } else if (sectionsResponse?.results) {
+    sections = sectionsResponse.results;
+  } else if (sectionsResponse?.data) {
+    sections = Array.isArray(sectionsResponse.data) ? sectionsResponse.data : [];
+  }
 
-  // Aggregate totals for stat cards
-  const totals = summary.reduce(
-    (acc, row) => ({
-      present:    acc.present    + (row.present    || 0),
-      absent:     acc.absent     + (row.absent     || 0),
-      late:       acc.late       + (row.late       || 0),
-      leave:      acc.leave      + (row.leave      || 0),
-      total_days: acc.total_days + (row.total_days || 0),
-    }),
-    { present: 0, absent: 0, late: 0, leave: 0, total_days: 0 }
-  )
+  // Fetch students
+  const { data: studentsData } = useQuery({
+    queryKey: ['students', filters.classId, filters.section],
+    queryFn: async () => {
+      const selectedClass = classes.find(c => c.id == filters.classId);
+      const response = await studentsApi.list({
+        class_name: selectedClass?.class_name,
+        section: filters.section,
+        status: 'active',
+      });
+      return response.data;
+    },
+    enabled: !!filters.classId && !!filters.section && classes.length > 0,
+  });
+
+  // Fetch monthly attendance
+  const { data: attendanceData, isLoading } = useQuery({
+    queryKey: ['monthly-attendance', filters],
+    queryFn: async () => {
+      const response = await attendanceApi.studentList({
+        class_id: filters.classId,
+        section: filters.section,
+        month: filters.month,
+        year: filters.year,
+      });
+      return response.data;
+    },
+    enabled: !!filters.classId && !!filters.section,
+  });
+
+  const students = studentsData?.results || studentsData || [];
+  const attendance = Array.isArray(attendanceData) ? attendanceData : (attendanceData?.results || []);
+
+  // Get days in month
+  const daysInMonth = new Date(filters.year, filters.month, 0).getDate();
+  const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+
+  // Create attendance map: { studentId: { date: status } }
+  const attendanceMap = {};
+  attendance.forEach(att => {
+    if (!attendanceMap[att.student]) {
+      attendanceMap[att.student] = {};
+    }
+    const day = new Date(att.date).getDate();
+    attendanceMap[att.student][day] = att.status;
+  });
+
+  // Calculate statistics for each student
+  const studentStats = students.map(student => {
+    const studentAtt = attendanceMap[student.id] || {};
+    const present = Object.values(studentAtt).filter(s => s === 'present').length;
+    const absent = Object.values(studentAtt).filter(s => s === 'absent').length;
+    const late = Object.values(studentAtt).filter(s => s === 'late').length;
+    const totalMarked = Object.keys(studentAtt).length;
+    const percentage = totalMarked > 0 ? ((present / totalMarked) * 100).toFixed(1) : 0;
+
+    return {
+      ...student,
+      present,
+      absent,
+      late,
+      totalMarked,
+      percentage,
+    };
+  });
+
+  const handlePrint = () => window.print();
+
+  const handleExport = () => {
+    const csvContent = [
+      ['S.No', 'Admission No', 'Student Name', 'Present', 'Absent', 'Late', 'Total Marked', 'Attendance %'].join(','),
+      ...studentStats.map((student, index) => [
+        index + 1,
+        student.admission_no,
+        student.student_name,
+        student.present,
+        student.absent,
+        student.late,
+        student.totalMarked,
+        student.percentage
+      ].join(',')),
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `monthly-attendance-${filters.year}-${filters.month}.csv`;
+    a.click();
+  };
+
+  const selectedClass = classes.find(c => c.id == filters.classId);
+  const monthName = new Date(filters.year, filters.month - 1).toLocaleDateString('en-US', { month: 'long' });
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-bold text-gray-800">Monthly Attendance Summary</h1>
-        <p className="text-sm text-gray-500">Student-wise monthly attendance overview</p>
+    <div className="p-6 max-w-full mx-auto">
+      {/* Header */}
+      <div className="mb-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+              <TrendingUp className="w-6 h-6" />
+              Class Wise Attendance Status
+            </h1>
+            <p className="text-gray-600 mt-1">Monthly attendance status for students</p>
+          </div>
+          <div className="flex gap-2 print:hidden">
+            <button
+              onClick={handlePrint}
+              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center gap-2"
+            >
+              <Printer className="w-4 h-4" />
+              Print
+            </button>
+            <button
+              onClick={handleExport}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
+            >
+              <Download className="w-4 h-4" />
+              Export
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Filters */}
-      <div className="card p-4">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="bg-white rounded-lg shadow-sm p-4 mb-6 print:hidden">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
-            <label className="form-label">Class</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              <Calendar className="w-4 h-4 inline mr-1" />
+              Month *
+            </label>
             <select
-              value={classId}
-              onChange={e => { setClassId(e.target.value); setSectionId('') }}
-              className="form-input"
+              value={filters.month}
+              onChange={(e) => setFilters({ ...filters, month: e.target.value })}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            >
+              {Array.from({ length: 12 }, (_, i) => (
+                <option key={i + 1} value={(i + 1).toString().padStart(2, '0')}>
+                  {new Date(2024, i).toLocaleDateString('en-US', { month: 'long' })}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Year *</label>
+            <select
+              value={filters.year}
+              onChange={(e) => setFilters({ ...filters, year: e.target.value })}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            >
+              {Array.from({ length: 5 }, (_, i) => {
+                const year = currentDate.getFullYear() - 2 + i;
+                return <option key={year} value={year}>{year}</option>;
+              })}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Class *</label>
+            <select
+              value={filters.classId}
+              onChange={(e) => setFilters({ ...filters, classId: e.target.value, section: '' })}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
             >
               <option value="">Select Class</option>
-              {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              {classes.map(cls => (
+                <option key={cls.id} value={cls.id}>{cls.class_name}</option>
+              ))}
             </select>
           </div>
+
           <div>
-            <label className="form-label">Section</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Section *</label>
             <select
-              value={sectionId}
-              onChange={e => setSectionId(e.target.value)}
-              className="form-input"
-              disabled={!classId}
+              value={filters.section}
+              onChange={(e) => setFilters({ ...filters, section: e.target.value })}
+              disabled={!filters.classId}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
             >
               <option value="">Select Section</option>
-              {sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              {sections.map(sec => (
+                <option key={sec.id} value={sec.section_name}>{sec.section_name}</option>
+              ))}
             </select>
-          </div>
-          <div>
-            <label className="form-label">Month</label>
-            <select value={month} onChange={e => setMonth(Number(e.target.value))} className="form-input">
-              {MONTHS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="form-label">Year</label>
-            <input
-              type="number"
-              value={year}
-              onChange={e => setYear(Number(e.target.value))}
-              className="form-input"
-              min="2000"
-              max="2100"
-            />
           </div>
         </div>
       </div>
 
-      {/* Empty / loading states */}
-      {(!classId || !sectionId) && (
-        <div className="card p-10 text-center text-gray-400">
-          Select class and section to view the monthly summary
-        </div>
-      )}
+      {/* Print Header */}
+      <div className="hidden print:block mb-4 text-center border-b-2 border-gray-300 pb-3">
+        <h2 className="text-xl font-bold">Monthly Attendance Status</h2>
+        <p className="text-sm">Class: {selectedClass?.class_name} - {filters.section} | Month: {monthName} {filters.year}</p>
+      </div>
 
-      {classId && sectionId && loading && (
-        <div className="card p-10 text-center text-gray-400">Loading summary...</div>
-      )}
-
-      {classId && sectionId && !loading && summary.length === 0 && (
-        <div className="card p-10 text-center text-gray-400">
-          No attendance records found for the selected filters
-        </div>
-      )}
-
-      {/* Stat cards */}
-      {classId && sectionId && !loading && summary.length > 0 && (
-        <>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-            {[
-              { label: 'Working Days', value: totals.total_days, color: 'text-gray-700' },
-              { label: 'Total Present', value: totals.present,    color: 'text-green-600' },
-              { label: 'Total Absent',  value: totals.absent,     color: 'text-red-600' },
-              { label: 'Total Late',    value: totals.late,       color: 'text-yellow-600' },
-              { label: 'Total Leave',   value: totals.leave,      color: 'text-blue-600' },
-            ].map(stat => (
-              <div key={stat.label} className="card p-4 text-center">
-                <div className={`text-2xl font-bold ${stat.color}`}>{stat.value}</div>
-                <div className="text-xs text-gray-500 mt-1">{stat.label}</div>
-              </div>
-            ))}
+      {/* Attendance Table */}
+      <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+        {isLoading ? (
+          <div className="p-8 text-center text-gray-500">Loading attendance...</div>
+        ) : !filters.classId || !filters.section ? (
+          <div className="p-8 text-center text-gray-500">
+            Please select month, year, class, and section
           </div>
-
-          {/* Table */}
-          <div className="card p-0 overflow-hidden">
-            <div className="table-container overflow-x-auto">
-              <table className="data-table text-sm">
-                <thead>
-                  <tr>
-                    <th className="px-3 py-2 text-left">#</th>
-                    <th className="px-3 py-2 text-left">Adm. No.</th>
-                    <th className="px-3 py-2 text-left">Student Name</th>
-                    <th className="px-3 py-2 text-center">Working Days</th>
-                    <th className="px-3 py-2 text-center text-green-700">Present</th>
-                    <th className="px-3 py-2 text-center text-red-700">Absent</th>
-                    <th className="px-3 py-2 text-center text-yellow-700">Late</th>
-                    <th className="px-3 py-2 text-center text-blue-700">Leave</th>
-                    <th className="px-3 py-2 text-center">Attendance %</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {summary.map((row, idx) => (
-                    <tr key={row.student_id} className="border-b border-gray-100 hover:bg-gray-50">
-                      <td className="px-3 py-2.5 text-gray-400">{idx + 1}</td>
-                      <td className="px-3 py-2.5">{row.admission_no}</td>
-                      <td className="px-3 py-2.5 font-medium text-gray-800">{row.student_name}</td>
-                      <td className="px-3 py-2.5 text-center">{row.total_days}</td>
-                      <td className="px-3 py-2.5 text-center text-green-700 font-semibold">{row.present}</td>
-                      <td className="px-3 py-2.5 text-center text-red-700 font-semibold">{row.absent}</td>
-                      <td className="px-3 py-2.5 text-center text-yellow-700 font-semibold">{row.late}</td>
-                      <td className="px-3 py-2.5 text-center text-blue-700 font-semibold">{row.leave}</td>
-                      <td className="px-3 py-2.5 text-center">
-                        <PercentageBadge value={row.percentage} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot className="bg-gray-50 font-semibold border-t-2 border-gray-200 text-sm">
-                  <tr>
-                    <td colSpan={3} className="px-3 py-2 text-gray-700">Grand Total</td>
-                    <td className="px-3 py-2 text-center">{totals.total_days}</td>
-                    <td className="px-3 py-2 text-center text-green-700">{totals.present}</td>
-                    <td className="px-3 py-2 text-center text-red-700">{totals.absent}</td>
-                    <td className="px-3 py-2 text-center text-yellow-700">{totals.late}</td>
-                    <td className="px-3 py-2 text-center text-blue-700">{totals.leave}</td>
-                    <td className="px-3 py-2 text-center text-gray-500">
-                      {totals.total_days > 0
-                        ? `${((totals.present / totals.total_days) * 100).toFixed(1)}%`
-                        : '—'}
+        ) : students.length === 0 ? (
+          <div className="p-8 text-center text-gray-500">
+            No students found in selected class and section
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase sticky left-0 bg-gray-50">S.No</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase sticky left-12 bg-gray-50">Admission No</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase sticky left-32 bg-gray-50">Student Name</th>
+                  <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">P</th>
+                  <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">A</th>
+                  <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">L</th>
+                  <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">%</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {studentStats.map((student, index) => (
+                  <tr key={student.id} className="hover:bg-gray-50">
+                    <td className="px-3 py-2 text-gray-900 sticky left-0 bg-white">{index + 1}</td>
+                    <td className="px-3 py-2 text-gray-900 sticky left-12 bg-white">{student.admission_no}</td>
+                    <td className="px-3 py-2 font-medium text-gray-900 sticky left-32 bg-white">{student.student_name}</td>
+                    <td className="px-3 py-2 text-center text-green-700 font-medium">{student.present}</td>
+                    <td className="px-3 py-2 text-center text-red-700 font-medium">{student.absent}</td>
+                    <td className="px-3 py-2 text-center text-yellow-700 font-medium">{student.late}</td>
+                    <td className="px-3 py-2 text-center">
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${
+                        student.percentage >= 75 ? 'bg-green-100 text-green-700' :
+                        student.percentage >= 50 ? 'bg-yellow-100 text-yellow-700' :
+                        'bg-red-100 text-red-700'
+                      }`}>
+                        {student.percentage}%
+                      </span>
                     </td>
                   </tr>
-                </tfoot>
-              </table>
-            </div>
+                ))}
+              </tbody>
+            </table>
           </div>
-        </>
-      )}
+        )}
+      </div>
+
+      {/* Print Styles */}
+      <style>{`
+        @media print {
+          .print\\:hidden {
+            display: none !important;
+          }
+          .print\\:block {
+            display: block !important;
+          }
+          body {
+            print-color-adjust: exact;
+            -webkit-print-color-adjust: exact;
+          }
+        }
+      `}</style>
     </div>
-  )
+  );
 }

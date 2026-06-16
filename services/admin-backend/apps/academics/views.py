@@ -1,9 +1,9 @@
 from rest_framework import generics, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from .models import ExamType, SubjectAllocation, StudentSubject, Marks, RemarkMaster, SignatureMaster, GradeScale
+from .models import ExamType, StudentSubject, Marks, RemarkMaster, SignatureMaster, GradeScale
 from .serializers import (
-    ExamTypeSerializer, SubjectAllocationSerializer, StudentSubjectSerializer,
+    ExamTypeSerializer, StudentSubjectSerializer,
     MarksSerializer, RemarkMasterSerializer, SignatureMasterSerializer, GradeScaleSerializer
 )
 from utils.permissions import IsSchoolStaff, IsSchoolAdmin
@@ -22,20 +22,27 @@ class ExamTypeListCreateView(generics.ListCreateAPIView):
         return qs
 
 
-class SubjectAllocationListCreateView(generics.ListCreateAPIView):
-    serializer_class = SubjectAllocationSerializer
-    permission_classes = [IsSchoolStaff]
+# NOTE: SubjectAllocation views temporarily disabled - needs redesign
+# class SubjectAllocationListCreateView(generics.ListCreateAPIView):
+#     serializer_class = SubjectAllocationSerializer
+#     permission_classes = [IsSchoolStaff]
+#
+#     def get_queryset(self):
+#         qs = SubjectAllocation.objects.select_related('class_ref', 'section', 'subject', 'teacher')
+#         params = self.request.query_params
+#         if params.get('class_id'):
+#             qs = qs.filter(class_ref_id=params['class_id'])
+#         if params.get('section_id'):
+#             qs = qs.filter(section_id=params['section_id'])
+#         if params.get('session_year'):
+#             qs = qs.filter(session_year=params['session_year'])
+#         return qs
 
-    def get_queryset(self):
-        qs = SubjectAllocation.objects.select_related('class_ref', 'section', 'subject', 'teacher')
-        params = self.request.query_params
-        if params.get('class_id'):
-            qs = qs.filter(class_ref_id=params['class_id'])
-        if params.get('section_id'):
-            qs = qs.filter(section_id=params['section_id'])
-        if params.get('session_year'):
-            qs = qs.filter(session_year=params['session_year'])
-        return qs
+
+# class SubjectAllocationDetailView(generics.RetrieveUpdateDestroyAPIView):
+#     serializer_class = SubjectAllocationSerializer
+#     permission_classes = [IsSchoolAdmin]
+#     queryset = SubjectAllocation.objects.all()
 
 
 class MarksListCreateView(generics.ListCreateAPIView):
@@ -97,10 +104,11 @@ class ExamTypeDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = ExamType.objects.all()
 
 
-class SubjectAllocationDetailView(generics.RetrieveUpdateDestroyAPIView):
-    serializer_class = SubjectAllocationSerializer
-    permission_classes = [IsSchoolAdmin]
-    queryset = SubjectAllocation.objects.all()
+# NOTE: SubjectAllocationDetailView temporarily disabled
+# class SubjectAllocationDetailView(generics.RetrieveUpdateDestroyAPIView):
+#     serializer_class = SubjectAllocationSerializer
+#     permission_classes = [IsSchoolAdmin]
+#     queryset = SubjectAllocation.objects.all()
 
 
 class RemarkMasterDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -176,19 +184,20 @@ def _grade_for(percentage, scales):
     return ''
 
 
-def _subjects_for(class_id, section_id, session_year, student_ids, exam_type_id):
-    sub_ids = list(
-        SubjectAllocation.objects
-        .filter(class_ref_id=class_id, section_id=section_id, session_year=session_year)
-        .values_list('subject_id', flat=True)
-    )
-    if not sub_ids:
-        sub_ids = list(
-            Marks.objects
-            .filter(student_id__in=student_ids, exam_type_id=exam_type_id)
-            .values_list('subject_id', flat=True).distinct()
-        )
-    return list(Subject.objects.filter(id__in=sub_ids).order_by('name'))
+# NOTE: _subjects_for temporarily disabled - uses SubjectAllocation
+# def _subjects_for(class_id, section_id, session_year, student_ids, exam_type_id):
+#     sub_ids = list(
+#         SubjectAllocation.objects
+#         .filter(class_ref_id=class_id, section_id=section_id, session_year=session_year)
+#         .values_list('subject_id', flat=True)
+#     )
+#     if not sub_ids:
+#         sub_ids = list(
+#             Marks.objects
+#             .filter(student_id__in=student_ids, exam_type_id=exam_type_id)
+#             .values_list('subject_id', flat=True).distinct()
+#         )
+#     return list(Subject.objects.filter(id__in=sub_ids).order_by('name'))
 
 
 def _build_student_report(student, exam_type, subjects, marks_map, scales):

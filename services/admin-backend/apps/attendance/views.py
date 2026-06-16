@@ -24,9 +24,15 @@ class StudentAttendanceListView(generics.ListAPIView):
         if params.get('student_id'):
             qs = qs.filter(student_id=params['student_id'])
         if params.get('class_id'):
-            qs = qs.filter(student__class_ref_id=params['class_id'])
-        if params.get('section_id'):
-            qs = qs.filter(student__section_id=params['section_id'])
+            # Filter by class_name from students table
+            from apps.students.models import ClassMaster
+            try:
+                class_obj = ClassMaster.objects.get(id=params['class_id'])
+                qs = qs.filter(student__class_name=class_obj.class_name)
+            except ClassMaster.DoesNotExist:
+                pass
+        if params.get('section'):
+            qs = qs.filter(student__section=params['section'])
         return qs
 
 
@@ -41,9 +47,9 @@ class BulkStudentAttendanceView(APIView):
         data = serializer.validated_data
         date = data['date']
         records = []
-        for att in data['attendances']:
+        for att in data['attendance']:
             obj, _ = StudentAttendance.objects.update_or_create(
-                student_id=att['student_id'],
+                student_id=att['student'],
                 date=date,
                 defaults={
                     'status': att.get('status', 'present'),
@@ -52,7 +58,10 @@ class BulkStudentAttendanceView(APIView):
                 }
             )
             records.append(obj)
-        return Response({'detail': f'{len(records)} attendance records saved.'})
+        return Response({
+            'detail': f'{len(records)} attendance records saved.',
+            'count': len(records)
+        })
 
 
 class AttendanceRegisterView(APIView):

@@ -128,3 +128,112 @@ class ResetSchoolAdminPasswordView(APIView):
         user.set_password(new_password)
         user.save()
         return Response({'detail': 'Password updated successfully.'})
+
+
+class SessionListView(APIView):
+    """List all active sessions"""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        from apps.students.models import SessionMaster
+        sessions = SessionMaster.objects.filter(status=True).order_by('-session_year')
+        
+        data = [{
+            'id': s.id,
+            'session_year': s.session_year,
+        } for s in sessions]
+        
+        return Response(data)
+
+
+class ChangeSessionView(APIView):
+    """Allow user to change their current working session"""
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        session_id = request.data.get('session_id')
+        
+        if not session_id:
+            return Response(
+                {'detail': 'session_id is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            from apps.students.models import SessionMaster
+            session = SessionMaster.objects.get(id=session_id, status=True)
+        except SessionMaster.DoesNotExist:
+            return Response(
+                {'detail': 'Session not found or inactive'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Generate new token with updated session
+        refresh = RefreshToken.for_user(request.user)
+        refresh['current_session'] = session.session_year
+        refresh['session_id'] = session.id
+        
+        # Copy other claims from original token
+        refresh['email'] = request.user.email
+        refresh['username'] = request.user.username or ''
+        refresh['role'] = request.user.role
+        refresh['full_name'] = request.user.full_name
+        if request.user.school_id:
+            refresh['school_id'] = request.user.school_id
+            try:
+                from apps.schools.models import School
+                school = School.objects.get(pk=request.user.school_id)
+                refresh['school_name'] = school.name
+            except Exception:
+                refresh['school_name'] = ''
+        
+        return Response({
+            'access': str(refresh.access_token),
+            'refresh': str(refresh),
+            'current_session': {
+                'id': session.id,
+                'session_year': session.session_year,
+            }
+        })
+
+
+class GetSchoolCodeView(APIView):
+    """Get school code from username/email (for fetching sessions on login page)"""
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        identifier = request.data.get('email') or request.data.get('username')
+        
+        if not identifier:
+            return Response(
+                {'detail': 'email or username is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            # Try to find user by email or username
+            from django.db.models import Q
+            user = User.objects.filter(
+                Q(email=identifier) | Q(username=identifier)
+            ).first()
+            
+            if not user or not user.school_id:
+                return Response(
+                    {'detail': 'User not found or no school assigned'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            # Get school code from school
+            from apps.schools.models import School
+            school = School.objects.get(pk=user.school_id)
+            
+            return Response({
+                'school_code': school.code,
+                'school_name': school.name,
+            })
+            
+        except Exception as e:
+            return Response(
+                {'detail': f'Error: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

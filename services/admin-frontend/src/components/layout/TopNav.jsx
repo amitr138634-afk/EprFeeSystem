@@ -15,7 +15,6 @@ const SCHOOL_ADMIN_NAV = [
     items: [
       { label: 'Student List',     to: '/students' },
       { label: 'Student Strength', to: '/students/strength' },
-      { label: 'Class & Section',  to: '/students/classes' },
     ],
   },
   {
@@ -33,23 +32,23 @@ const SCHOOL_ADMIN_NAV = [
       {
         title: 'Student Attendance',
         items: [
-          { label: 'Mark Attendance',    to: '/attendance/mark' },
-          { label: 'Date-wise Register', to: '/attendance/date-wise' },
-          { label: 'Absent Log',         to: '/attendance/absent-log' },
-          { label: 'Monthly Register',   to: '/attendance/monthly' },
-          { label: 'Summary Report',     to: '/attendance/summary' },
+          { label: 'Student Attendance',          to: '/attendance/mark' },
+          { label: 'Attendance Register',         to: '/attendance/date-wise' },
+          { label: 'Absent Log',                  to: '/attendance/absent-log' },
+          { label: 'Class Wise Attendance Status',to: '/attendance/monthly' },
+          { label: 'Date Wise Summary',           to: '/attendance/summary' },
         ],
       },
       {
         title: 'Staff Attendance',
         items: [
-          { label: 'Shift Setup',      to: '/attendance/staff/shifts' },
-          { label: 'Mark Attendance',  to: '/attendance/staff/mark' },
-          { label: 'Monthly Report',   to: '/attendance/staff/monthly' },
-          { label: 'Holidays',         to: '/attendance/staff/holidays' },
-          { label: 'Leave Requests',   to: '/attendance/staff/leave-requests' },
-          { label: 'Leave Balance',    to: '/attendance/staff/leave-balance' },
-          { label: 'Date-wise Report', to: '/attendance/staff/date-wise' },
+          { label: 'Manage Shift',                 to: '/attendance/staff/shifts' },
+          { label: 'Staff Attendance',             to: '/attendance/staff/mark' },
+          { label: 'Monthly Staff Attendance Report', to: '/attendance/staff/monthly' },
+          { label: 'Staff Holiday List',           to: '/attendance/staff/holidays' },
+          { label: 'Staff Leave Request',          to: '/attendance/staff/leave-requests' },
+          { label: 'Leave Balance Report',         to: '/attendance/staff/leave-balance' },
+          { label: 'Date Wise Staff Summary',      to: '/attendance/staff/date-wise' },
         ],
       },
     ],

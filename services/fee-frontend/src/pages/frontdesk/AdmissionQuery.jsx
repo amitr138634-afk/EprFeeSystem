@@ -528,7 +528,7 @@ function QueryTab() {
 function EnquiryListTab() {
   const [filters, setFilters] = useState({
     adm_status: 'enquiry',  // Filter by adm_status instead of status
-    session: '2024-25',
+    session: '',  // Empty to show all sessions
     search: ''
   })
   
@@ -538,7 +538,14 @@ function EnquiryListTab() {
 
   const { data: queries = [], isLoading, refetch } = useQuery({
     queryKey: ['admission-queries', filters],
-    queryFn: () => feeApi.queries(filters).then(r => r.data.results || r.data)
+    queryFn: async () => {
+      console.log('🔍 Fetching queries with filters:', filters)
+      const response = await feeApi.queries(filters)
+      console.log('📊 API Response:', response.data)
+      const result = response.data.results || response.data
+      console.log('✅ Parsed queries:', result)
+      return result
+    }
   })
 
   const getStatusBadge = (status) => {
@@ -605,7 +612,7 @@ function EnquiryListTab() {
           </div>
           <div className="flex items-end">
             <button
-              onClick={() => setFilters({ adm_status: 'enquiry', session: '2024-25', search: '' })}
+              onClick={() => setFilters({ adm_status: 'enquiry', session: '', search: '' })}
               className="btn-secondary w-full"
             >
               Clear Filters

@@ -174,6 +174,7 @@ const NAV = [
           { label: 'Class Master',        to: '/masters/classes' },
           { label: 'Sec Master',          to: '/masters/sec-master' },
           { label: 'Class Section Master', to: '/masters/sections' },
+          { label: 'Session Master',      to: '/masters/sessions' },
         ],
       },
     ],

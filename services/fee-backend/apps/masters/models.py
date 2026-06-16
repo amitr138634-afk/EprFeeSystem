@@ -66,6 +66,11 @@ class Student(models.Model):
         ('tc_issued', 'TC Issued'),
     ]
     
+    TYPE_CHOICES = [
+        ('new', 'New'),
+        ('old', 'Old'),
+    ]
+    
     admission_no = models.CharField(max_length=20, unique=True)
     student_name = models.CharField(max_length=200)
     father_name = models.CharField(max_length=200)
@@ -76,8 +81,9 @@ class Student(models.Model):
     mother_mobile = models.CharField(max_length=15, blank=True)
     father_email = models.EmailField(blank=True)
     mother_email = models.EmailField(blank=True)
-    class_id = models.IntegerField()
     class_name = models.CharField(max_length=50)
+    section = models.CharField(max_length=10, default='A')  # Default section A
+    type = models.CharField(max_length=10, choices=TYPE_CHOICES, default='new')  # New/Old student
     session = models.CharField(max_length=20)
     admission_date = models.DateField()
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
@@ -90,5 +96,20 @@ class Student(models.Model):
 
     def __str__(self):
         return f'{self.student_name} ({self.admission_no})'
+
+
+class SessionMaster(models.Model):
+    """Academic session master - simplified version"""
+    session_year = models.CharField(max_length=20, unique=True)  # '2024-2025'
+    status = models.BooleanField(default=True, help_text='1=Active, 0=Inactive')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'session_master'
+        ordering = ['-session_year']
+    
+    def __str__(self):
+        return self.session_year
 
 

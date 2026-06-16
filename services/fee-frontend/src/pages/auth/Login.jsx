@@ -1,6 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
+import toast from 'react-hot-toast'
+import { Eye, EyeOff, ArrowRight, Check, IndianRupee, Calendar } from 'lucide-react'
+import useAuthStore from '../../store/authStore'
+import { authApi } from '../../services/api'
+import api from '../../services/api'
 import { Eye, EyeOff, ArrowRight, Check, IndianRupee } from 'lucide-react'
 import useAuthStore from '../../store/authStore'
 import { authApi } from '../../services/api'
@@ -20,6 +25,9 @@ export default function Login() {
   const { login } = useAuthStore()
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [sessions, setSessions] = useState([])
+  const [selectedSession, setSelectedSession] = useState('')
+  const { register, handleSubmit, formState: { errors } } = useForm()
   const { register, handleSubmit, setError, clearErrors, formState: { errors } } = useForm()
 
   // Surface a message left by the auth redirect (e.g. "session expired").
@@ -31,10 +39,40 @@ export default function Login() {
     }
   }, [])
 
+  // Fetch available sessions on mount
+  useEffect(() => {
+    const fetchSessions = async () => {
+      try {
+        const res = await api.get('/masters/sessions/')
+        const sessionData = Array.isArray(res.data) ? res.data : (res.data.results || [])
+        setSessions(sessionData)
+        // Select first (latest) session by default
+        if (sessionData.length > 0) {
+          setSelectedSession(sessionData[0].id)
+        }
+      } catch (err) {
+        console.error('Failed to load sessions:', err)
+        // Don't show error to user on login page, just log it
+      }
+    }
+    fetchSessions()
+  }, [])
+
   const onSubmit = async (data) => {
     setLoading(true)
     clearErrors()
     try {
+      const loginData = { ...data }
+      if (selectedSession) {
+        loginData.session_id = selectedSession
+      }
+      const res = await authApi.login(loginData)
+      
+      // Extract current_session from response
+      const currentSession = res.data.current_session || null
+      
+      login(res.data.user, { access: res.data.access, refresh: res.data.refresh }, currentSession)
+      toast.success(`Welcome back, ${res.data.user.full_name}!`)
       const res = await authApi.login(data)
       login(res.data.user, { access: res.data.access, refresh: res.data.refresh })
       notify.success(`Welcome back, ${res.data.user.full_name}!`, { title: 'Signed in' })
@@ -146,6 +184,26 @@ export default function Login() {
               </div>
               {errors.password && <p className="form-error">{errors.password.message}</p>}
             </div>
+
+            {sessions.length > 0 && (
+              <div>
+                <label className="form-label flex items-center gap-1.5">
+                  <Calendar size={14} />
+                  Academic Session
+                </label>
+                <select
+                  value={selectedSession}
+                  onChange={(e) => setSelectedSession(e.target.value)}
+                  className="form-input"
+                >
+                  {sessions.map(session => (
+                    <option key={session.id} value={session.id}>
+                      {session.session_year}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <button type="submit" disabled={loading} className="btn-primary w-full mt-1">
               {loading

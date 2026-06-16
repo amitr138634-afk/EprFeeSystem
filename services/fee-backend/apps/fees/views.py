@@ -703,8 +703,9 @@ class ApproveAdmissionView(APIView):
                 mother_mobile=query.mother_mobile,
                 father_email=query.father_email or '',
                 mother_email=query.mother_email or '',
-                class_id=query.class_id,
                 class_name=query.class_name,
+                section='A',  # Default section
+                type='new',   # New student
                 session=query.session,
                 admission_date=timezone.now().date(),
                 status='active'
@@ -858,16 +859,16 @@ class StudentsByClassView(APIView):
     def get(self, request):
         from apps.masters.models import Student
         
-        class_id = request.query_params.get('class_id')
+        class_name = request.query_params.get('class_name')
         session = request.query_params.get('session')
         
-        if not class_id:
+        if not class_name:
             return Response(
-                {'detail': 'class_id is required'},
+                {'detail': 'class_name is required'},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        students = Student.objects.filter(class_id=class_id, status='active')
+        students = Student.objects.filter(class_name=class_name, status='active')
         
         if session:
             students = students.filter(session=session)
@@ -880,6 +881,8 @@ class StudentsByClassView(APIView):
             'student_name': s.student_name,
             'father_name': s.father_name,
             'class_name': s.class_name,
+            'section': s.section,
+            'type': s.type,
             'session': s.session,
             'admission_date': s.admission_date,
             'father_mobile': s.father_mobile
@@ -918,8 +921,9 @@ class StudentProfileView(APIView):
             'mother_mobile': student.mother_mobile,
             'father_email': student.father_email,
             'mother_email': student.mother_email,
-            'class_id': student.class_id,
             'class_name': student.class_name,
+            'section': student.section,
+            'type': student.type,
             'session': student.session,
             'admission_date': student.admission_date,
             'status': student.status
@@ -941,12 +945,22 @@ class StudentProfileView(APIView):
                 if row:
                     fee_data = dict(zip(columns, row))
                     
-                    # Get fee head names from fee_amount table
-                    fee_heads = FeeAmount.objects.filter(
-                        class_id=student.class_id,
-                        session=student.session,
-                        type='new'
-                    ).order_by('id')[:20]
+                    # Get fee head names from fee_amount table based on class_name
+                    # Note: We need to get class_id from ClassMaster for FeeAmount query
+                    from apps.masters.models import ClassMaster
+                    class_master = ClassMaster.objects.filter(
+                        class_name=student.class_name, 
+                        session=student.session
+                    ).first()
+                    
+                    if class_master:
+                        fee_heads = FeeAmount.objects.filter(
+                            class_id=class_master.id,
+                            session=student.session,
+                            type='new'
+                        ).order_by('id')[:20]
+                    else:
+                        fee_heads = []
                     
                     # Format fee structure for frontend
                     fee_structure = []

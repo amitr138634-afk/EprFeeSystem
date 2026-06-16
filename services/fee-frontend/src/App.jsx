@@ -25,6 +25,7 @@ import Feedbacks from './pages/frontdesk/Feedbacks'
 import ClassMaster from './pages/masters/ClassMaster'
 import SectionMaster from './pages/masters/SectionMaster'
 import SecMaster from './pages/masters/SecMaster'
+import SessionMaster from './pages/masters/SessionMaster'
 
 // Fee Management
 import PayFeeNew from './pages/feemgmt/PayFee'
@@ -166,6 +167,7 @@ export default function App() {
         <Route path="masters/classes"                 element={<ClassMaster />} />
         <Route path="masters/sec-master"              element={<SecMaster />} />
         <Route path="masters/sections"                element={<SectionMaster />} />
+        <Route path="masters/sessions"                element={<SessionMaster />} />
       </Route>
     </Routes>
   )

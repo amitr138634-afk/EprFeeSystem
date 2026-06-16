@@ -16,4 +16,8 @@ urlpatterns = [
     path('sections/', views.ClassSectionMasterListCreateView.as_view(), name='class-section-master-list'),
     path('sections/<int:pk>/', views.ClassSectionMasterDetailView.as_view(), name='class-section-master-detail'),
     path('sections/<int:pk>/toggle-status/', views.ClassSectionMasterToggleStatusView.as_view(), name='class-section-toggle-status'),
+    
+    # Session Master
+    path('sessions/', views.SessionMasterListCreateView.as_view(), name='session-master-list'),
+    path('sessions/<int:pk>/', views.SessionMasterDetailView.as_view(), name='session-master-detail'),
 ]

@@ -2,234 +2,314 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { Search, Plus, Trash2 } from 'lucide-react'
+import { Search, User, Phone, Mail, Calendar, BookOpen, Hash, DollarSign, X } from 'lucide-react'
 import { feeApi } from '../../services/api'
 
 export default function PayFee() {
-  const [items, setItems] = useState([])
-  const [studentSearch, setStudentSearch] = useState('')
+  const [admissionNo, setAdmissionNo] = useState('')
   const [selectedStudent, setSelectedStudent] = useState(null)
-  const { register, handleSubmit, watch, reset } = useForm({
-    defaultValues: { payment_mode: 'cash', payment_date: new Date().toISOString().split('T')[0] }
-  })
+  const [selectedClass, setSelectedClass] = useState('')
+  const [studentsList, setStudentsList] = useState([])
+  const [showPaymentModal, setShowPaymentModal] = useState(false)
+  const [selectedFees, setSelectedFees] = useState([])
 
-  const { data: feeHeads = [] } = useQuery({
-    queryKey: ['fee-heads'],
-    queryFn: () => feeApi.heads().then(r => r.data.results || r.data),
-  })
-
-  const payMutation = useMutation({
-    mutationFn: (data) => feeApi.payFee(data),
+  // Search student by admission number
+  const searchMutation = useMutation({
+    mutationFn: (admNo) => feeApi.searchStudent(admNo),
     onSuccess: (res) => {
-      toast.success(`Receipt #${res.data.receipt_no} generated!`)
-      reset()
-      setItems([])
+      setSelectedStudent(res.data)
+      toast.success('Student found!')
+    },
+    onError: () => {
+      toast.error('Student not found with this admission number')
       setSelectedStudent(null)
     },
-    onError: () => toast.error('Failed to process payment'),
   })
 
-  const addItem = (feeHead) => {
-    if (!items.find(i => i.fee_head_id === feeHead.id)) {
-      setItems(prev => [...prev, { fee_head_id: feeHead.id, fee_head_name: feeHead.name, amount: 0, discount: 0 }])
+  // Get students by class
+  const getStudentsByClass = useMutation({
+    mutationFn: (className) => feeApi.getStudentsByClass(className),
+    onSuccess: (res) => {
+      setStudentsList(res.data)
+    },
+    onError: () => toast.error('Failed to fetch students'),
+  })
+
+  // Get classes
+  const { data: classes = [] } = useQuery({
+    queryKey: ['classes'],
+    queryFn: () => feeApi.getClasses().then(r => r.data.results || r.data),
+  })
+
+  const handleSearch = (e) => {
+    e.preventDefault()
+    if (admissionNo.trim()) {
+      searchMutation.mutate(admissionNo.trim())
     }
   }
 
-  const removeItem = (feeHeadId) => {
-    setItems(prev => prev.filter(i => i.fee_head_id !== feeHeadId))
+  const handleClassChange = (className) => {
+    setSelectedClass(className)
+    setSelectedStudent(null)
+    setStudentsList([])
+    if (className) {
+      getStudentsByClass.mutate(className)
+    }
   }
 
-  const updateItem = (feeHeadId, field, value) => {
-    setItems(prev => prev.map(i => i.fee_head_id === feeHeadId ? { ...i, [field]: Number(value) } : i))
+  const selectStudentFromList = (student) => {
+    setSelectedStudent(student)
+    setAdmissionNo(student.admission_no)
   }
 
-  const total = items.reduce((a, i) => a + (i.amount - i.discount), 0)
-
-  const onSubmit = (data) => {
-    if (!selectedStudent) { toast.error('Please select a student'); return }
-    if (items.length === 0) { toast.error('Add at least one fee head'); return }
-    payMutation.mutate({
-      ...selectedStudent,
-      payment_mode: data.payment_mode,
-      payment_date: data.payment_date,
-      cheque_no: data.cheque_no,
-      bank_name: data.bank_name,
-      transaction_id: data.transaction_id,
-      remarks: data.remarks,
-      items,
-    })
+  const handlePayFee = () => {
+    if (!selectedStudent) {
+      toast.error('Please select a student first')
+      return
+    }
+    setShowPaymentModal(true)
   }
-
-  const paymentMode = watch('payment_mode')
 
   return (
-    <div className="space-y-4 max-w-4xl">
-      <h1 className="text-xl font-bold text-gray-800">Pay Fee</h1>
+    <div className="space-y-6 max-w-7xl mx-auto">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+          Pay Fee
+        </h1>
+      </div>
 
-      <div className="grid grid-cols-3 gap-5">
-        {/* Student Search */}
-        <div className="col-span-3 lg:col-span-1">
-          <div className="card p-4">
-            <h3 className="font-semibold text-gray-700 mb-3">Search Student</h3>
-            <div className="relative mb-3">
-              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+      {/* Search Section */}
+      <div className="card p-6 bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-100">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Search by Admission Number */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <Hash className="inline w-4 h-4 mr-1" />
+              Search by Admission Number
+            </label>
+            <form onSubmit={handleSearch} className="flex gap-2">
               <input
                 type="text"
-                placeholder="Name or Admission No."
-                value={studentSearch}
-                onChange={e => setStudentSearch(e.target.value)}
-                className="form-input pl-9 text-xs"
+                value={admissionNo}
+                onChange={(e) => setAdmissionNo(e.target.value)}
+                placeholder="Enter admission number..."
+                className="form-input flex-1"
               />
-            </div>
-            {selectedStudent && (
-              <div className="bg-blue-50 rounded-lg p-3 text-sm">
-                <p className="font-semibold">{selectedStudent.student_name}</p>
-                <p className="text-gray-500 text-xs">{selectedStudent.class_name} - {selectedStudent.section_name}</p>
-                <p className="text-gray-500 text-xs">Adm: {selectedStudent.admission_no}</p>
-              </div>
-            )}
-            <p className="text-xs text-gray-400 mt-2">Demo: Click to set a sample student</p>
-            <button
-              className="mt-2 text-xs text-blue-600 underline"
-              onClick={() => setSelectedStudent({
-                student_id: 1, student_name: 'Sample Student',
-                class_name: 'X', section_name: 'A',
-                admission_no: 'ADM001', session_year: '2024-25'
-              })}
-            >
-              Load Sample Student
-            </button>
+              <button
+                type="submit"
+                disabled={searchMutation.isLoading}
+                className="btn-primary px-6 flex items-center gap-2"
+              >
+                <Search size={16} />
+                {searchMutation.isLoading ? 'Searching...' : 'Search'}
+              </button>
+            </form>
           </div>
 
-          {/* Fee Heads */}
-          <div className="card p-4 mt-4">
-            <h3 className="font-semibold text-gray-700 mb-3">Fee Heads</h3>
-            <div className="space-y-1">
-              {feeHeads.map(head => (
-                <button
-                  key={head.id}
-                  onClick={() => addItem(head)}
-                  className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 rounded-lg flex items-center justify-between"
-                >
-                  <span>{head.name}</span>
-                  <Plus size={14} className="text-blue-500" />
-                </button>
+          {/* Filter by Class */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <BookOpen className="inline w-4 h-4 mr-1" />
+              Filter by Class
+            </label>
+            <select
+              value={selectedClass}
+              onChange={(e) => handleClassChange(e.target.value)}
+              className="form-input w-full"
+            >
+              <option value="">-- Select Class --</option>
+              {classes.map((cls) => (
+                <option key={cls.id} value={cls.class_name}>
+                  {cls.class_name}
+                </option>
               ))}
-              {feeHeads.length === 0 && <p className="text-xs text-gray-400">No fee heads configured</p>}
-            </div>
+            </select>
           </div>
         </div>
+      </div>
 
-        {/* Fee Entry */}
-        <div className="col-span-3 lg:col-span-2">
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <div className="card p-4">
-              <h3 className="font-semibold text-gray-700 mb-3">Payment Details</h3>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="form-label">Payment Date</label>
-                  <input type="date" className="form-input" {...register('payment_date')} />
-                </div>
-                <div>
-                  <label className="form-label">Payment Mode</label>
-                  <select className="form-input" {...register('payment_mode')}>
-                    <option value="cash">Cash</option>
-                    <option value="cheque">Cheque</option>
-                    <option value="online">Online/NEFT</option>
-                    <option value="upi">UPI</option>
-                    <option value="card">Card</option>
-                  </select>
-                </div>
-                {paymentMode === 'cheque' && (
-                  <>
-                    <div>
-                      <label className="form-label">Cheque No.</label>
-                      <input className="form-input" {...register('cheque_no')} />
-                    </div>
-                    <div>
-                      <label className="form-label">Bank Name</label>
-                      <input className="form-input" {...register('bank_name')} />
-                    </div>
-                  </>
-                )}
-                {(paymentMode === 'online' || paymentMode === 'upi') && (
-                  <div className="col-span-2">
-                    <label className="form-label">Transaction ID</label>
-                    <input className="form-input" {...register('transaction_id')} />
+      {/* Students List (when class is selected) */}
+      {selectedClass && studentsList.length > 0 && !selectedStudent && (
+        <div className="card p-6">
+          <h3 className="text-lg font-bold text-gray-800 mb-4">
+            Students in Class {selectedClass} ({studentsList.length})
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {studentsList.map((student) => (
+              <div
+                key={student.id}
+                onClick={() => selectStudentFromList(student)}
+                className="p-4 border-2 border-gray-200 rounded-lg hover:border-blue-500 hover:shadow-lg cursor-pointer transition-all"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-white font-bold text-lg">
+                    {student.student_name.charAt(0)}
                   </div>
-                )}
-                <div className="col-span-2">
-                  <label className="form-label">Remarks</label>
-                  <input className="form-input" {...register('remarks')} />
+                  <div className="flex-1">
+                    <h4 className="font-semibold text-gray-800">{student.student_name}</h4>
+                    <p className="text-sm text-gray-500">Adm: {student.admission_no}</p>
+                    <p className="text-sm text-gray-500">Father: {student.father_name}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Student Profile Section */}
+      {selectedStudent && (
+        <div className="space-y-6">
+          {/* Student Info Card */}
+          <div className="card overflow-hidden">
+            <div className="bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 h-32"></div>
+            <div className="p-6 -mt-16">
+              <div className="flex flex-col md:flex-row gap-6">
+                {/* Profile Photo */}
+                <div className="flex-shrink-0">
+                  <div className="w-32 h-32 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full border-4 border-white shadow-xl flex items-center justify-center text-white font-bold text-4xl">
+                    {selectedStudent.student_name.charAt(0)}
+                  </div>
+                </div>
+
+                {/* Student Details */}
+                <div className="flex-1 pt-4">
+                  <h2 className="text-2xl font-bold text-gray-800 mb-1">
+                    {selectedStudent.student_name}
+                  </h2>
+                  <p className="text-gray-500 mb-4">Admission No: {selectedStudent.admission_no}</p>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="flex items-center gap-2 text-sm">
+                      <BookOpen className="w-4 h-4 text-blue-500" />
+                      <span className="text-gray-600">Class:</span>
+                      <span className="font-semibold">{selectedStudent.class_name} - {selectedStudent.section || 'A'}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm">
+                      <User className="w-4 h-4 text-purple-500" />
+                      <span className="text-gray-600">Father:</span>
+                      <span className="font-semibold">{selectedStudent.father_name}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm">
+                      <Phone className="w-4 h-4 text-green-500" />
+                      <span className="text-gray-600">Mobile:</span>
+                      <span className="font-semibold">{selectedStudent.father_mobile}</span>
+                    </div>
+                    {selectedStudent.father_email && (
+                      <div className="flex items-center gap-2 text-sm">
+                        <Mail className="w-4 h-4 text-red-500" />
+                        <span className="text-gray-600">Email:</span>
+                        <span className="font-semibold text-xs">{selectedStudent.father_email}</span>
+                      </div>
+                    )}
+                    {selectedStudent.date_of_birth && (
+                      <div className="flex items-center gap-2 text-sm">
+                        <Calendar className="w-4 h-4 text-orange-500" />
+                        <span className="text-gray-600">DOB:</span>
+                        <span className="font-semibold">{new Date(selectedStudent.date_of_birth).toLocaleDateString()}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2 text-sm">
+                      <Hash className="w-4 h-4 text-indigo-500" />
+                      <span className="text-gray-600">Session:</span>
+                      <span className="font-semibold">{selectedStudent.session}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
+          </div>
 
-            <div className="card p-4">
-              <h3 className="font-semibold text-gray-700 mb-3">Fee Items</h3>
-              {items.length === 0 ? (
-                <p className="text-center text-gray-400 text-sm py-4">Click fee heads on the left to add</p>
-              ) : (
+          {/* Fee Structure */}
+          {selectedStudent.fee_structure && selectedStudent.fee_structure.length > 0 && (
+            <div className="card p-6">
+              <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <DollarSign className="w-5 h-5 text-green-500" />
+                Fee Structure
+              </h3>
+              <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-gray-200">
-                      <th className="table-header px-2 py-2 text-left">Fee Head</th>
-                      <th className="table-header px-2 py-2 text-right">Amount</th>
-                      <th className="table-header px-2 py-2 text-right">Discount</th>
-                      <th className="table-header px-2 py-2 text-right">Net</th>
-                      <th className="table-header px-2 py-2"></th>
+                    <tr className="bg-gray-50">
+                      <th className="table-header text-left px-4 py-3 border">Fee Head</th>
+                      <th className="table-header text-right px-4 py-3 border">Apr</th>
+                      <th className="table-header text-right px-4 py-3 border">May</th>
+                      <th className="table-header text-right px-4 py-3 border">Jun</th>
+                      <th className="table-header text-right px-4 py-3 border">Jul</th>
+                      <th className="table-header text-right px-4 py-3 border">Aug</th>
+                      <th className="table-header text-right px-4 py-3 border">Sep</th>
+                      <th className="table-header text-right px-4 py-3 border">Oct</th>
+                      <th className="table-header text-right px-4 py-3 border">Nov</th>
+                      <th className="table-header text-right px-4 py-3 border">Dec</th>
+                      <th className="table-header text-right px-4 py-3 border">Jan</th>
+                      <th className="table-header text-right px-4 py-3 border">Feb</th>
+                      <th className="table-header text-right px-4 py-3 border">Mar</th>
+                      <th className="table-header text-right px-4 py-3 border bg-blue-50">Annual</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {items.map(item => (
-                      <tr key={item.fee_head_id} className="border-b border-gray-100">
-                        <td className="px-2 py-2">{item.fee_head_name}</td>
-                        <td className="px-2 py-2">
-                          <input
-                            type="number" min="0"
-                            value={item.amount}
-                            onChange={e => updateItem(item.fee_head_id, 'amount', e.target.value)}
-                            className="form-input text-right w-24"
-                          />
-                        </td>
-                        <td className="px-2 py-2">
-                          <input
-                            type="number" min="0"
-                            value={item.discount}
-                            onChange={e => updateItem(item.fee_head_id, 'discount', e.target.value)}
-                            className="form-input text-right w-20"
-                          />
-                        </td>
-                        <td className="px-2 py-2 text-right font-medium">
-                          ₹{(item.amount - item.discount).toLocaleString('en-IN')}
-                        </td>
-                        <td className="px-2 py-2">
-                          <button onClick={() => removeItem(item.fee_head_id)} className="text-red-500 hover:bg-red-50 p-1 rounded">
-                            <Trash2 size={14} />
-                          </button>
+                    {selectedStudent.fee_structure.map((fee, idx) => (
+                      <tr key={idx} className="hover:bg-gray-50">
+                        <td className="px-4 py-2 border font-medium text-gray-700">{fee.head_name}</td>
+                        {fee.months.map((month, mIdx) => (
+                          <td key={mIdx} className="px-4 py-2 border text-right">
+                            ₹{month.amount.toLocaleString('en-IN')}
+                          </td>
+                        ))}
+                        <td className="px-4 py-2 border text-right font-semibold bg-blue-50 text-blue-600">
+                          ₹{fee.annual_total.toLocaleString('en-IN')}
                         </td>
                       </tr>
                     ))}
-                    <tr className="bg-gray-50 font-semibold">
-                      <td colSpan={3} className="px-2 py-2 text-right">Total Payable:</td>
-                      <td className="px-2 py-2 text-right text-blue-600">₹{total.toLocaleString('en-IN')}</td>
-                      <td></td>
+                    <tr className="bg-gradient-to-r from-blue-500 to-purple-500 text-white font-bold">
+                      <td className="px-4 py-3 border">GRAND TOTAL</td>
+                      <td colSpan="12" className="px-4 py-3 border text-right">
+                        ₹{selectedStudent.fee_structure.reduce((sum, f) => sum + f.annual_total, 0).toLocaleString('en-IN')}
+                      </td>
+                      <td className="px-4 py-3 border"></td>
                     </tr>
                   </tbody>
                 </table>
-              )}
+              </div>
             </div>
+          )}
 
+          {/* Action Buttons */}
+          <div className="flex gap-4">
             <button
-              type="submit"
-              disabled={payMutation.isLoading}
-              className="btn-primary w-full py-3"
+              onClick={handlePayFee}
+              className="btn-primary flex-1 py-4 text-lg font-semibold flex items-center justify-center gap-2"
             >
-              {payMutation.isLoading ? 'Processing...' : `Generate Receipt (₹${total.toLocaleString('en-IN')})`}
+              <DollarSign size={20} />
+              Pay Fee
             </button>
-          </form>
+            <button
+              onClick={() => setSelectedStudent(null)}
+              className="btn-secondary px-8 py-4 flex items-center gap-2"
+            >
+              <X size={20} />
+              Clear
+            </button>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Payment Modal - Will be implemented next */}
+      {showPaymentModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold text-gray-800">Payment Details</h3>
+                <button onClick={() => setShowPaymentModal(false)} className="text-gray-500 hover:text-gray-700">
+                  <X size={24} />
+                </button>
+              </div>
+              <p className="text-gray-600 text-center py-8">Payment form coming next...</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

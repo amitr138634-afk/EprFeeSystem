@@ -1,6 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
+import toast from 'react-hot-toast'
+import { Eye, EyeOff, ArrowRight, Check, GraduationCap, Calendar } from 'lucide-react'
+import useAuthStore from '../../store/authStore'
+import { authApi } from '../../services/api'
+import api from '../../services/api'
 import { Eye, EyeOff, ArrowRight, Check, GraduationCap } from 'lucide-react'
 import useAuthStore from '../../store/authStore'
 import { authApi } from '../../services/api'
@@ -20,6 +25,9 @@ export default function Login() {
   const { login } = useAuthStore()
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [sessions, setSessions] = useState([])
+  const [selectedSession, setSelectedSession] = useState('')
+  const { register, handleSubmit, formState: { errors } } = useForm()
   const { register, handleSubmit, setError, clearErrors, formState: { errors } } = useForm()
 
   // Surface a message left by the auth redirect (e.g. "session expired").
@@ -31,10 +39,78 @@ export default function Login() {
     }
   }, [])
 
+  // Fetch available sessions on mount
+  useEffect(() => {
+    const fetchSessions = async () => {
+      try {
+        console.log('Fetching sessions from /students/sessions/...')
+        // Get school_code from query param (will be set after username blur)
+        const schoolCode = new URLSearchParams(window.location.search).get('school_code')
+        if (!schoolCode) {
+          console.log('No school_code yet, waiting for username input')
+          return
+        }
+        
+        const res = await api.get(`/students/sessions/?school_code=${schoolCode}`)
+        console.log('Sessions response:', res.data)
+        const sessionData = Array.isArray(res.data) ? res.data : (res.data.results || [])
+        console.log('Parsed sessions:', sessionData)
+        setSessions(sessionData)
+        // Select first (latest) session by default
+        if (sessionData.length > 0) {
+          setSelectedSession(sessionData[0].id)
+          console.log('Selected session:', sessionData[0])
+        } else {
+          console.log('No sessions found')
+        }
+      } catch (err) {
+        console.error('Failed to load sessions:', err)
+        console.error('Error details:', err.response?.data)
+        // Don't show error to user on login page
+      }
+    }
+    fetchSessions()
+  }, [])
+
+  // Fetch school code and sessions when username/email is entered
+  const handleUsernameBlur = async (e) => {
+    const identifier = e.target.value.trim()
+    if (!identifier) return
+    
+    try {
+      const res = await api.post('/auth/get-school-code/', { email: identifier })
+      const schoolCode = res.data.school_code
+      console.log('Got school code:', schoolCode)
+      
+      // Fetch sessions for this school
+      const sessionsRes = await api.get(`/students/sessions/?school_code=${schoolCode}`)
+      const sessionData = Array.isArray(sessionsRes.data) ? sessionsRes.data : (sessionsRes.data.results || [])
+      setSessions(sessionData)
+      
+      if (sessionData.length > 0) {
+        setSelectedSession(sessionData[0].id)
+      }
+    } catch (err) {
+      console.error('Failed to fetch school or sessions:', err)
+      setSessions([])
+    }
+  }
+
   const onSubmit = async (data) => {
     setLoading(true)
     clearErrors()
     try {
+      const loginData = { ...data }
+      if (selectedSession) {
+        loginData.session_id = selectedSession
+      }
+      const res = await authApi.login(loginData)
+      login(
+        res.data.user, 
+        { access: res.data.access, refresh: res.data.refresh },
+        res.data.current_session
+      )
+      toast.success(`Welcome back, ${res.data.user.full_name}!`)
       const res = await authApi.login(data)
       login(res.data.user, { access: res.data.access, refresh: res.data.refresh })
       notify.success(`Welcome back, ${res.data.user.full_name}!`, { title: 'Signed in' })
@@ -122,6 +198,7 @@ export default function Login() {
                 className="form-input"
                 placeholder="admin@school.com"
                 {...register('email', { required: 'Required' })}
+                onBlur={handleUsernameBlur}
               />
               {errors.email && <p className="form-error">{errors.email.message}</p>}
             </div>
@@ -145,6 +222,33 @@ export default function Login() {
                 </button>
               </div>
               {errors.password && <p className="form-error">{errors.password.message}</p>}
+            </div>
+
+            {/* Always show session dropdown for debugging */}
+            <div>
+              <label className="form-label flex items-center gap-1.5">
+                <Calendar size={14} />
+                Academic Session
+              </label>
+              <select
+                value={selectedSession}
+                onChange={(e) => setSelectedSession(e.target.value)}
+                className="form-input"
+                disabled={sessions.length === 0}
+              >
+                {sessions.length === 0 ? (
+                  <option value="">Loading sessions...</option>
+                ) : (
+                  sessions.map(session => (
+                    <option key={session.id} value={session.id}>
+                      {session.session_year}
+                    </option>
+                  ))
+                )}
+              </select>
+              {sessions.length === 0 && (
+                <p className="text-xs text-red-500 mt-1">No sessions found. Please create sessions in Session Master.</p>
+              )}
             </div>
 
             <button type="submit" disabled={loading} className="btn-primary w-full mt-1">

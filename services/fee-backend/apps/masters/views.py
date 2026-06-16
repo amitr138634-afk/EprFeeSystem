@@ -1,8 +1,11 @@
 from rest_framework import generics, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from .models import ClassMaster, ClassSectionMaster, SectionMaster
-from .serializers import ClassMasterSerializer, ClassSectionMasterSerializer, SectionMasterSerializer
+from .models import ClassMaster, ClassSectionMaster, SectionMaster, SessionMaster
+from .serializers import (
+    ClassMasterSerializer, ClassSectionMasterSerializer, 
+    SectionMasterSerializer, SessionMasterSerializer
+)
 from utils.permissions import IsSchoolAdmin
 
 
@@ -108,3 +111,29 @@ class ClassSectionMasterToggleStatusView(APIView):
             })
         except ClassSectionMaster.DoesNotExist:
             return Response({'detail': 'Section not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+
+
+# Session Master Views
+class SessionMasterListCreateView(generics.ListCreateAPIView):
+    """List all sessions and create new session"""
+    serializer_class = SessionMasterSerializer
+    
+    def get_permissions(self):
+        # Allow unauthenticated access for GET (login page dropdown)
+        if self.request.method == 'GET':
+            from rest_framework.permissions import AllowAny
+            return [AllowAny()]
+        return [IsSchoolAdmin()]
+    
+    def get_queryset(self):
+        # Fee-backend directly uses tenant DB (already configured in .env)
+        # No need for dynamic routing since fee-backend is single-tenant per instance
+        return SessionMaster.objects.all().order_by('-session_year')
+
+
+class SessionMasterDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """Get, update, or delete a session"""
+    serializer_class = SessionMasterSerializer
+    permission_classes = [IsSchoolAdmin]
+    queryset = SessionMaster.objects.all()

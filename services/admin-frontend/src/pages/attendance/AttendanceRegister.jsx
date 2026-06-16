@@ -1,234 +1,315 @@
-import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { attendanceApi, studentApi } from '../../services/api'
-
-const STATUS_MAP = {
-  present: { label: 'P',  bg: 'bg-green-100 text-green-700' },
-  absent:  { label: 'A',  bg: 'bg-red-100 text-red-700' },
-  late:    { label: 'L',  bg: 'bg-yellow-100 text-yellow-700' },
-  leave:   { label: 'LE', bg: 'bg-blue-100 text-blue-700' },
-}
-
-const MONTHS = [
-  { value: 1,  label: 'January' },  { value: 2,  label: 'February' },
-  { value: 3,  label: 'March' },    { value: 4,  label: 'April' },
-  { value: 5,  label: 'May' },      { value: 6,  label: 'June' },
-  { value: 7,  label: 'July' },     { value: 8,  label: 'August' },
-  { value: 9,  label: 'September' },{ value: 10, label: 'October' },
-  { value: 11, label: 'November' }, { value: 12, label: 'December' },
-]
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Calendar, FileText, Printer, Download } from "lucide-react";
+import { attendanceApi, studentsApi } from "../../services/api";
 
 export default function AttendanceRegister() {
-  const now = new Date()
-  const [classId,   setClassId]   = useState('')
-  const [sectionId, setSectionId] = useState('')
-  const [month,     setMonth]     = useState(now.getMonth() + 1)
-  const [year,      setYear]      = useState(now.getFullYear())
+  const currentDate = new Date();
+  const [filters, setFilters] = useState({
+    date: currentDate.toISOString().split('T')[0],
+    classId: '',
+    section: '',
+  });
 
-  const { data: classes = [] } = useQuery({
-    queryKey: ['classes'],
-    queryFn: () => studentApi.classes().then(r => r.data.results || r.data),
-  })
+  // Fetch classes
+  const { data: classesResponse } = useQuery({
+    queryKey: ['classMasters'],
+    queryFn: async () => {
+      const response = await studentsApi.classMasters();
+      return response.data;
+    },
+  });
 
-  const { data: sections = [] } = useQuery({
-    queryKey: ['sections', classId],
-    queryFn: () => studentApi.sections({ class_id: classId }).then(r => r.data.results || r.data),
-    enabled: !!classId,
-  })
-
-  const { data: registerData, isLoading, isFetching } = useQuery({
-    queryKey: ['attendance-register', classId, sectionId, month, year],
-    queryFn:  () =>
-      attendanceApi.register({ class_id: classId, section_id: sectionId, month, year })
-        .then(r => r.data),
-    enabled: !!classId && !!sectionId,
-  })
-
-  const students = registerData?.students || []
-  const dates    = registerData?.dates    || []
-  const data     = registerData?.data     || {}
-
-  // Compute per-student row counts
-  const rowCounts = (studentId) => {
-    const row = data[studentId] || {}
-    const c = { present: 0, absent: 0, late: 0, leave: 0 }
-    dates.forEach(d => { if (row[d] && c[row[d]] !== undefined) c[row[d]]++ })
-    return c
+  let classes = [];
+  if (Array.isArray(classesResponse)) {
+    classes = classesResponse;
+  } else if (classesResponse?.results) {
+    classes = classesResponse.results;
+  } else if (classesResponse?.data) {
+    classes = Array.isArray(classesResponse.data) ? classesResponse.data : [];
   }
 
-  // Compute column (date) totals for the summary footer
-  const colTotals = dates.map(d => {
-    const c = { present: 0, absent: 0, late: 0, leave: 0 }
-    students.forEach(s => {
-      const st = data[s.id]?.[d]
-      if (st && c[st] !== undefined) c[st]++
-    })
-    return c
-  })
+  // Fetch sections
+  const { data: sectionsResponse } = useQuery({
+    queryKey: ['sectionMasters', filters.classId],
+    queryFn: async () => {
+      const response = await studentsApi.sectionMasters({ class_id: filters.classId });
+      return response.data;
+    },
+    enabled: !!filters.classId,
+  });
 
-  // Grand totals for summary columns
-  const grandTotal = { present: 0, absent: 0, late: 0, leave: 0 }
-  students.forEach(s => {
-    const c = rowCounts(s.id)
-    grandTotal.present += c.present
-    grandTotal.absent  += c.absent
-    grandTotal.late    += c.late
-    grandTotal.leave   += c.leave
-  })
+  let sections = [];
+  if (Array.isArray(sectionsResponse)) {
+    sections = sectionsResponse;
+  } else if (sectionsResponse?.results) {
+    sections = sectionsResponse.results;
+  } else if (sectionsResponse?.data) {
+    sections = Array.isArray(sectionsResponse.data) ? sectionsResponse.data : [];
+  }
 
-  const loading = isLoading || isFetching
+  // Fetch students
+  const { data: studentsData } = useQuery({
+    queryKey: ['students', filters.classId, filters.section],
+    queryFn: async () => {
+      const selectedClass = classes.find(c => c.id == filters.classId);
+      const response = await studentsApi.list({
+        class_name: selectedClass?.class_name,
+        section: filters.section,
+        status: 'active',
+      });
+      return response.data;
+    },
+    enabled: !!filters.classId && !!filters.section && classes.length > 0,
+  });
+
+  // Fetch attendance for selected date
+  const { data: attendanceData, isLoading } = useQuery({
+    queryKey: ['attendance-register', filters],
+    queryFn: async () => {
+      const response = await attendanceApi.studentList({
+        date: filters.date,
+        class_id: filters.classId,
+        section: filters.section,
+      });
+      return response.data;
+    },
+    enabled: !!filters.date && !!filters.classId && !!filters.section,
+  });
+
+  const students = studentsData?.results || studentsData || [];
+  const attendance = Array.isArray(attendanceData) ? attendanceData : (attendanceData?.results || []);
+
+  // Create attendance map for quick lookup
+  const attendanceMap = {};
+  attendance.forEach(att => {
+    attendanceMap[att.student] = att;
+  });
+
+  const stats = {
+    total: students.length,
+    present: attendance.filter(a => a.status === 'present').length,
+    absent: attendance.filter(a => a.status === 'absent').length,
+    late: attendance.filter(a => a.status === 'late').length,
+    notMarked: students.length - attendance.length,
+  };
+
+  const handlePrint = () => window.print();
+
+  const handleExport = () => {
+    const csvContent = [
+      ['S.No', 'Admission No', 'Student Name', 'Father Name', 'Status', 'Remarks'].join(','),
+      ...students.map((student, index) => {
+        const att = attendanceMap[student.id];
+        return [
+          index + 1,
+          student.admission_no,
+          student.student_name,
+          student.father_name,
+          att?.status || 'Not Marked',
+          att?.remarks || ''
+        ].join(',');
+      }),
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `attendance-register-${filters.date}.csv`;
+    a.click();
+  };
+
+  const selectedClass = classes.find(c => c.id == filters.classId);
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-bold text-gray-800">Attendance Register</h1>
-        <p className="text-sm text-gray-500">Date-wise monthly attendance for a class and section</p>
+    <div className="p-6 max-w-7xl mx-auto">
+      {/* Header */}
+      <div className="mb-6 print:mb-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+              <FileText className="w-6 h-6" />
+              Attendance Register
+            </h1>
+            <p className="text-gray-600 mt-1">Date-wise attendance register for students</p>
+          </div>
+          <div className="flex gap-2 print:hidden">
+            <button
+              onClick={handlePrint}
+              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center gap-2"
+            >
+              <Printer className="w-4 h-4" />
+              Print
+            </button>
+            <button
+              onClick={handleExport}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
+            >
+              <Download className="w-4 h-4" />
+              Export
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Filters */}
-      <div className="card p-4">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="bg-white rounded-lg shadow-sm p-4 mb-6 print:hidden">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className="form-label">Class</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              <Calendar className="w-4 h-4 inline mr-1" />
+              Date *
+            </label>
+            <input
+              type="date"
+              value={filters.date}
+              onChange={(e) => setFilters({ ...filters, date: e.target.value })}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Class *</label>
             <select
-              value={classId}
-              onChange={e => { setClassId(e.target.value); setSectionId('') }}
-              className="form-input"
+              value={filters.classId}
+              onChange={(e) => setFilters({ ...filters, classId: e.target.value, section: '' })}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
             >
               <option value="">Select Class</option>
-              {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              {classes.map(cls => (
+                <option key={cls.id} value={cls.id}>{cls.class_name}</option>
+              ))}
             </select>
           </div>
+
           <div>
-            <label className="form-label">Section</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Section *</label>
             <select
-              value={sectionId}
-              onChange={e => setSectionId(e.target.value)}
-              className="form-input"
-              disabled={!classId}
+              value={filters.section}
+              onChange={(e) => setFilters({ ...filters, section: e.target.value })}
+              disabled={!filters.classId}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
             >
               <option value="">Select Section</option>
-              {sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              {sections.map(sec => (
+                <option key={sec.id} value={sec.section_name}>{sec.section_name}</option>
+              ))}
             </select>
-          </div>
-          <div>
-            <label className="form-label">Month</label>
-            <select value={month} onChange={e => setMonth(Number(e.target.value))} className="form-input">
-              {MONTHS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="form-label">Year</label>
-            <input
-              type="number"
-              value={year}
-              onChange={e => setYear(Number(e.target.value))}
-              className="form-input"
-              min="2000"
-              max="2100"
-            />
           </div>
         </div>
       </div>
 
-      {/* States */}
-      {(!classId || !sectionId) && (
-        <div className="card p-10 text-center text-gray-400">
-          Select class and section to view the attendance register
-        </div>
-      )}
-
-      {classId && sectionId && loading && (
-        <div className="card p-10 text-center text-gray-400">Loading register...</div>
-      )}
-
-      {classId && sectionId && !loading && students.length === 0 && (
-        <div className="card p-10 text-center text-gray-400">
-          No attendance data found for the selected filters
-        </div>
-      )}
-
-      {/* Register Table */}
-      {classId && sectionId && !loading && students.length > 0 && (
-        <div className="card p-0 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 flex flex-wrap items-center justify-between gap-2">
-            <span className="font-semibold text-gray-700 text-sm">
-              {MONTHS.find(m => m.value === month)?.label} {year} &mdash; {students.length} Students
-            </span>
-            <div className="flex gap-3 text-xs text-gray-500">
-              <span><span className="inline-block w-2.5 h-2.5 rounded bg-green-400 mr-1"></span>Present (P)</span>
-              <span><span className="inline-block w-2.5 h-2.5 rounded bg-red-400 mr-1"></span>Absent (A)</span>
-              <span><span className="inline-block w-2.5 h-2.5 rounded bg-yellow-400 mr-1"></span>Late (L)</span>
-              <span><span className="inline-block w-2.5 h-2.5 rounded bg-blue-400 mr-1"></span>Leave (LE)</span>
-            </div>
+      {/* Statistics */}
+      {students.length > 0 && (
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6 print:mb-4">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <p className="text-xs text-blue-600 font-medium">Total</p>
+            <p className="text-2xl font-bold text-blue-700">{stats.total}</p>
           </div>
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+            <p className="text-xs text-green-600 font-medium">Present</p>
+            <p className="text-2xl font-bold text-green-700">{stats.present}</p>
+          </div>
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <p className="text-xs text-red-600 font-medium">Absent</p>
+            <p className="text-2xl font-bold text-red-700">{stats.absent}</p>
+          </div>
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <p className="text-xs text-yellow-600 font-medium">Late</p>
+            <p className="text-2xl font-bold text-yellow-700">{stats.late}</p>
+          </div>
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+            <p className="text-xs text-gray-600 font-medium">Not Marked</p>
+            <p className="text-2xl font-bold text-gray-700">{stats.notMarked}</p>
+          </div>
+        </div>
+      )}
 
+      {/* Register Header for Print */}
+      <div className="hidden print:block mb-4 text-center border-b-2 border-gray-300 pb-3">
+        <h2 className="text-xl font-bold">Attendance Register</h2>
+        <p className="text-sm">Class: {selectedClass?.class_name} - {filters.section} | Date: {new Date(filters.date).toLocaleDateString()}</p>
+      </div>
+
+      {/* Attendance Table */}
+      <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+        {isLoading ? (
+          <div className="p-8 text-center text-gray-500">Loading register...</div>
+        ) : !filters.classId || !filters.section ? (
+          <div className="p-8 text-center text-gray-500">
+            Please select date, class, and section to view register
+          </div>
+        ) : students.length === 0 ? (
+          <div className="p-8 text-center text-gray-500">
+            No students found in selected class and section
+          </div>
+        ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-xs border-collapse whitespace-nowrap">
-              <thead className="bg-gray-50">
+            <table className="w-full">
+              <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="px-3 py-2 text-left border-b border-gray-200 min-w-[36px]">#</th>
-                  <th className="px-3 py-2 text-left border-b border-gray-200 min-w-[90px]">Adm. No.</th>
-                  <th className="px-3 py-2 text-left border-b border-gray-200 min-w-[160px]">Student Name</th>
-                  {dates.map(d => (
-                    <th key={d} className="px-2 py-2 text-center border-b border-gray-200 w-9">{d}</th>
-                  ))}
-                  <th className="px-2 py-2 text-center border-b border-gray-200 bg-green-50 text-green-700">P</th>
-                  <th className="px-2 py-2 text-center border-b border-gray-200 bg-red-50 text-red-700">A</th>
-                  <th className="px-2 py-2 text-center border-b border-gray-200 bg-yellow-50 text-yellow-700">L</th>
-                  <th className="px-2 py-2 text-center border-b border-gray-200 bg-blue-50 text-blue-700">LE</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase w-16">S.No</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Admission No</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Student Name</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Father Name</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase print:hidden">Remarks</th>
                 </tr>
               </thead>
-              <tbody>
-                {students.map((s, idx) => {
-                  const row  = data[s.id] || {}
-                  const cnt  = rowCounts(s.id)
+              <tbody className="divide-y divide-gray-200">
+                {students.map((student, index) => {
+                  const att = attendanceMap[student.id];
                   return (
-                    <tr key={s.id} className="border-b border-gray-100 hover:bg-gray-50">
-                      <td className="px-3 py-2 text-gray-400">{idx + 1}</td>
-                      <td className="px-3 py-2">{s.admission_no}</td>
-                      <td className="px-3 py-2 font-medium text-gray-800">{s.name}</td>
-                      {dates.map(d => {
-                        const status = row[d]
-                        const style  = STATUS_MAP[status]
-                        return (
-                          <td key={d} className="px-1 py-2 text-center">
-                            {style ? (
-                              <span className={`inline-block px-1 py-0.5 rounded font-semibold ${style.bg}`}>
-                                {style.label}
-                              </span>
-                            ) : (
-                              <span className="text-gray-300">—</span>
-                            )}
-                          </td>
-                        )
-                      })}
-                      <td className="px-2 py-2 text-center text-green-700 font-semibold bg-green-50">{cnt.present}</td>
-                      <td className="px-2 py-2 text-center text-red-700 font-semibold bg-red-50">{cnt.absent}</td>
-                      <td className="px-2 py-2 text-center text-yellow-700 font-semibold bg-yellow-50">{cnt.late}</td>
-                      <td className="px-2 py-2 text-center text-blue-700 font-semibold bg-blue-50">{cnt.leave}</td>
+                    <tr key={student.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 text-sm text-gray-900">{index + 1}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900">{student.admission_no}</td>
+                      <td className="px-4 py-3 text-sm font-medium text-gray-900">{student.student_name}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600">{student.father_name}</td>
+                      <td className="px-4 py-3 text-center">
+                        {att ? (
+                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                            att.status === 'present' ? 'bg-green-100 text-green-700' :
+                            att.status === 'absent' ? 'bg-red-100 text-red-700' :
+                            att.status === 'late' ? 'bg-yellow-100 text-yellow-700' :
+                            att.status === 'half_day' ? 'bg-orange-100 text-orange-700' :
+                            'bg-purple-100 text-purple-700'
+                          }`}>
+                            {att.status.replace('_', ' ').toUpperCase()}
+                          </span>
+                        ) : (
+                          <span className="px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                            NOT MARKED
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-600 print:hidden">
+                        {att?.remarks || '-'}
+                      </td>
                     </tr>
-                  )
+                  );
                 })}
               </tbody>
-              <tfoot className="bg-gray-100 font-semibold border-t-2 border-gray-300">
-                <tr>
-                  <td colSpan={3} className="px-3 py-2 text-gray-700">Totals</td>
-                  {colTotals.map((c, i) => (
-                    <td key={i} className="px-1 py-2 text-center text-green-700">
-                      {c.present > 0 ? c.present : <span className="text-gray-300">—</span>}
-                    </td>
-                  ))}
-                  <td className="px-2 py-2 text-center text-green-700 bg-green-50">{grandTotal.present}</td>
-                  <td className="px-2 py-2 text-center text-red-700 bg-red-50">{grandTotal.absent}</td>
-                  <td className="px-2 py-2 text-center text-yellow-700 bg-yellow-50">{grandTotal.late}</td>
-                  <td className="px-2 py-2 text-center text-blue-700 bg-blue-50">{grandTotal.leave}</td>
-                </tr>
-              </tfoot>
             </table>
           </div>
-        </div>
-      )}
+        )}
+      </div>
+
+      {/* Print Styles */}
+      <style>{`
+        @media print {
+          .print\\:hidden {
+            display: none !important;
+          }
+          .print\\:block {
+            display: block !important;
+          }
+          body {
+            print-color-adjust: exact;
+            -webkit-print-color-adjust: exact;
+          }
+        }
+      `}</style>
     </div>
-  )
+  );
 }

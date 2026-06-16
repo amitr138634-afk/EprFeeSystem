@@ -1,5 +1,5 @@
 from django.db import models
-from apps.students.models import Student, Class, Section
+from apps.students.models import Student, ClassMaster, ClassSectionMaster
 from apps.timetable.models import Subject
 from apps.staff.models import Staff
 
@@ -19,16 +19,18 @@ class ExamType(models.Model):
         return f'{self.name} ({self.session_year})'
 
 
-class SubjectAllocation(models.Model):
-    class_ref = models.ForeignKey(Class, on_delete=models.CASCADE)
-    section = models.ForeignKey(Section, on_delete=models.CASCADE)
-    subject = models.ForeignKey(Subject, on_delete=models.CASCADE)
-    teacher = models.ForeignKey(Staff, on_delete=models.SET_NULL, null=True)
-    session_year = models.CharField(max_length=10)
-
-    class Meta:
-        db_table = 'subject_allocations'
-        unique_together = ['class_ref', 'section', 'subject', 'session_year']
+# NOTE: SubjectAllocation needs redesign to work with fee-backend structure
+# Temporarily disabled - will be fixed in next iteration
+# class SubjectAllocation(models.Model):
+#     class_ref = models.ForeignKey(ClassMaster, on_delete=models.CASCADE)
+#     section = models.ForeignKey(ClassSectionMaster, on_delete=models.CASCADE)
+#     subject = models.ForeignKey(Subject, on_delete=models.CASCADE)
+#     teacher = models.ForeignKey(Staff, on_delete=models.SET_NULL, null=True)
+#     session_year = models.CharField(max_length=10)
+#
+#     class Meta:
+#         db_table = 'subject_allocations'
+#         unique_together = ['class_ref', 'section', 'subject', 'session_year']
 
 
 class StudentSubject(models.Model):

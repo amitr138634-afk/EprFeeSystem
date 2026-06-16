@@ -70,7 +70,7 @@
   .data-table tbody td { @apply px-4 py-3 text-gray-700; }
 
   /* ── Page header ─────────────────────────────────────────────────── */
-  .page-header { @apply flex items-center justify-between mb-6; }
+  .page-header { @apply flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6; }
   .page-title  { @apply text-xl font-bold text-gray-900; }
   .page-sub    { @apply text-sm text-gray-500 mt-0.5; }
 

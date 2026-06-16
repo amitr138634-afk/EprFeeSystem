@@ -31,14 +31,32 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         return token
 
     def validate(self, attrs):
-        # Allow login by username (no @) or email
-        login_id = attrs.get('email', '')
-        if login_id and '@' not in login_id:
-            try:
-                user_obj = User.objects.get(username=login_id)
+        # Resolve the supplied identifier (username OR email) to a real account
+        # so we can give a precise reason when sign-in fails.
+        login_id = (attrs.get('email') or '').strip()
+        password = attrs.get('password') or ''
+
+        user_obj = None
+        if login_id:
+            if '@' in login_id:
+                user_obj = User.objects.filter(email__iexact=login_id).first()
+            else:
+                user_obj = User.objects.filter(username=login_id).first()
+            if user_obj:
                 attrs['email'] = user_obj.email
-            except User.DoesNotExist:
-                pass
+
+        if user_obj is None:
+            raise serializers.ValidationError(
+                {'detail': 'No account found with this username or email.', 'code': 'user_not_found'}
+            )
+        if not user_obj.is_active:
+            raise serializers.ValidationError(
+                {'detail': 'This account is inactive. Please contact your administrator.', 'code': 'inactive'}
+            )
+        if not user_obj.check_password(password):
+            raise serializers.ValidationError(
+                {'detail': 'Incorrect password. Please try again.', 'code': 'wrong_password'}
+            )
 
         data = super().validate(attrs)
         data['user'] = {

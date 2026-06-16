@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { notify, getApiErrorMessage } from '../lib/notify'
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
 
@@ -16,7 +17,9 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    const original = error.config
+    const original = error.config || {}
+
+    // One-time token refresh on 401, then replay the original request.
     if (error.response?.status === 401 && !original._retry) {
       original._retry = true
       try {
@@ -28,8 +31,19 @@ api.interceptors.response.use(
       } catch {
         localStorage.removeItem('access_token')
         localStorage.removeItem('refresh_token')
-        window.location.href = '/login'
+        if (window.location.pathname !== '/login') {
+          // Surfaced on the login page after the redirect (toast state is lost on reload).
+          sessionStorage.setItem('auth_message', 'Your session has expired. Please sign in again.')
+          window.location.href = '/login'
+        }
+        return Promise.reject(error)
       }
+    }
+
+    // Global API-failure popup. Opt out per request with { suppressErrorToast: true }.
+    if (!original.suppressErrorToast) {
+      const message = getApiErrorMessage(error)
+      if (message) notify.error(message)
     }
     return Promise.reject(error)
   }
@@ -38,7 +52,7 @@ api.interceptors.response.use(
 export default api
 
 export const authApi = {
-  login:             (data) => api.post('/auth/login/', data),
+  login:             (data) => api.post('/auth/login/', data, { suppressErrorToast: true }),
   logout:            (refresh) => api.post('/auth/logout/', { refresh }),
   profile:           () => api.get('/auth/profile/'),
   changePassword:    (data) => api.post('/auth/change-password/', data),

@@ -1,14 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
-import toast from 'react-hot-toast'
 import { Eye, EyeOff, ArrowRight, Check, GraduationCap, Calendar } from 'lucide-react'
 import useAuthStore from '../../store/authStore'
-import { authApi } from '../../services/api'
-import api from '../../services/api'
-import { Eye, EyeOff, ArrowRight, Check, GraduationCap } from 'lucide-react'
-import useAuthStore from '../../store/authStore'
-import { authApi } from '../../services/api'
+import api, { authApi } from '../../services/api'
 import { notify } from '../../lib/notify'
 
 const SERVICES = [
@@ -27,7 +22,6 @@ export default function Login() {
   const [loading, setLoading] = useState(false)
   const [sessions, setSessions] = useState([])
   const [selectedSession, setSelectedSession] = useState('')
-  const { register, handleSubmit, formState: { errors } } = useForm()
   const { register, handleSubmit, setError, clearErrors, formState: { errors } } = useForm()
 
   // Surface a message left by the auth redirect (e.g. "session expired").
@@ -106,13 +100,10 @@ export default function Login() {
       }
       const res = await authApi.login(loginData)
       login(
-        res.data.user, 
+        res.data.user,
         { access: res.data.access, refresh: res.data.refresh },
         res.data.current_session
       )
-      toast.success(`Welcome back, ${res.data.user.full_name}!`)
-      const res = await authApi.login(data)
-      login(res.data.user, { access: res.data.access, refresh: res.data.refresh })
       notify.success(`Welcome back, ${res.data.user.full_name}!`, { title: 'Signed in' })
       navigate('/')
     } catch (err) {

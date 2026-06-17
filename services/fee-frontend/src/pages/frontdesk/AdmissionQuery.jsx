@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { feeApi } from '../../services/api'
+import useAuthStore from '../../store/authStore'
 import toast from 'react-hot-toast'
 import { Plus, Search, Phone, Mail, Calendar, User, X, Save, Eye, Edit2, Trash2 } from 'lucide-react'
 
@@ -63,8 +64,8 @@ export default function AdmissionQuery() {
 // Query Tab Component
 function QueryTab() {
   const queryClient = useQueryClient()
-  const currentSession = '2024-25'
-  
+  const currentSession = useAuthStore(s => s.currentSession?.session_year) || ''
+
   const [formData, setFormData] = useState({
     student_name: '',
     father_name: '',

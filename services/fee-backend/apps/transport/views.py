@@ -8,6 +8,7 @@ from .serializers import (
     TransportAttendanceSerializer, VehiclePartSerializer, VehicleMakeSerializer, VehicleModelSerializer
 )
 from utils.permissions import IsSchoolAdmin, IsSchoolStaff
+from utils.session import SessionScopedMixin, current_session_year
 
 
 class VehicleMakeListCreateView(generics.ListCreateAPIView):
@@ -51,19 +52,18 @@ class StopListCreateView(generics.ListCreateAPIView):
         return qs
 
 
-class StudentTransportListCreateView(generics.ListCreateAPIView):
+class StudentTransportListCreateView(SessionScopedMixin, generics.ListCreateAPIView):
     serializer_class = StudentTransportSerializer
     permission_classes = [IsSchoolStaff]
+    queryset = StudentTransport.objects.select_related('route', 'stop')
 
     def get_queryset(self):
-        qs = StudentTransport.objects.select_related('route', 'stop')
+        qs = super().get_queryset()
         params = self.request.query_params
         if params.get('route_id'):
             qs = qs.filter(route_id=params['route_id'])
         if params.get('status'):
             qs = qs.filter(status=params['status'])
-        if params.get('session_year'):
-            qs = qs.filter(session_year=params['session_year'])
         return qs
 
 
@@ -85,7 +85,7 @@ class BuswiseStudentCountView(APIView):
     permission_classes = [IsSchoolStaff]
 
     def get(self, request):
-        session_year = request.query_params.get('session_year', '')
+        session_year = request.query_params.get('session_year') or current_session_year() or ''
         data = (
             StudentTransport.objects
             .filter(status='active', session_year=session_year)
@@ -118,7 +118,7 @@ class StopDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Stop.objects.all()
 
 
-class StudentTransportDetailView(generics.RetrieveUpdateDestroyAPIView):
+class StudentTransportDetailView(SessionScopedMixin, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = StudentTransportSerializer
     permission_classes = [IsSchoolStaff]
     queryset = StudentTransport.objects.all()
@@ -134,7 +134,7 @@ class TransportDashboardView(APIView):
     permission_classes = [IsSchoolStaff]
 
     def get(self, request):
-        session_year = request.query_params.get('session_year', '')
+        session_year = request.query_params.get('session_year') or current_session_year() or ''
         total_using = StudentTransport.objects.filter(status='active', session_year=session_year).count()
         total_vehicles = Vehicle.objects.filter(status='active').count()
         total_routes = Route.objects.filter(is_active=True).count()

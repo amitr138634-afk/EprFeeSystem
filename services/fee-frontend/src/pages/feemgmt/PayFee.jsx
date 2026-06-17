@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
+import useAuthStore from '../../store/authStore';
 
 const PayFee = () => {
   const navigate = useNavigate();
+  const activeSession = useAuthStore(s => s.currentSession?.session_year) || '';
   const [searchType, setSearchType] = useState('admission'); // 'admission' or 'class'
   const [admissionNo, setAdmissionNo] = useState('');
   const [selectedClass, setSelectedClass] = useState('');
-  const [selectedSession, setSelectedSession] = useState('2024-25');
+  const [selectedSession, setSelectedSession] = useState(activeSession);
   const [classes, setClasses] = useState([]);
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -203,9 +205,7 @@ const PayFee = () => {
                       value={selectedSession}
                       onChange={(e) => setSelectedSession(e.target.value)}
                     >
-                      <option value="2024-25">2024-25</option>
-                      <option value="2023-24">2023-24</option>
-                      <option value="2025-26">2025-26</option>
+                      {activeSession && <option value={activeSession}>{activeSession}</option>}
                     </select>
                   </div>
 

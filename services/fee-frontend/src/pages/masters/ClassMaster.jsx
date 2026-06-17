@@ -1,16 +1,18 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { masterApi } from '../../services/api'
+import useAuthStore from '../../store/authStore'
 import toast from 'react-hot-toast'
 import { Plus, Edit2, Trash2, Save, X, CheckCircle, XCircle } from 'lucide-react'
 
 export default function ClassMaster() {
   const queryClient = useQueryClient()
+  const activeSession = useAuthStore(s => s.currentSession?.session_year) || ''
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [formData, setFormData] = useState({
     class_name: '',
-    session: '2024-25',
+    session: activeSession,
     status: true
   })
 
@@ -66,7 +68,7 @@ export default function ClassMaster() {
   })
 
   const resetForm = () => {
-    setFormData({ class_name: '', session: '2024-25', status: true })
+    setFormData({ class_name: '', session: activeSession, status: true })
     setShowForm(false)
     setEditingId(null)
   }

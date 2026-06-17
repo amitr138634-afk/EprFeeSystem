@@ -7,19 +7,15 @@ from .serializers import (
     MarksSerializer, RemarkMasterSerializer, SignatureMasterSerializer, GradeScaleSerializer
 )
 from utils.permissions import IsSchoolStaff, IsSchoolAdmin
+from utils.session import SessionScopedMixin, current_session_year
 from apps.students.models import Student
 from apps.timetable.models import Subject
 
 
-class ExamTypeListCreateView(generics.ListCreateAPIView):
+class ExamTypeListCreateView(SessionScopedMixin, generics.ListCreateAPIView):
     serializer_class = ExamTypeSerializer
     permission_classes = [IsSchoolAdmin]
-
-    def get_queryset(self):
-        qs = ExamType.objects.all()
-        if self.request.query_params.get('session_year'):
-            qs = qs.filter(session_year=self.request.query_params['session_year'])
-        return qs
+    queryset = ExamType.objects.all()
 
 
 # NOTE: SubjectAllocation views temporarily disabled - needs redesign
@@ -98,7 +94,7 @@ class SignatureMasterListCreateView(generics.ListCreateAPIView):
     queryset = SignatureMaster.objects.all()
 
 
-class ExamTypeDetailView(generics.RetrieveUpdateDestroyAPIView):
+class ExamTypeDetailView(SessionScopedMixin, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = ExamTypeSerializer
     permission_classes = [IsSchoolAdmin]
     queryset = ExamType.objects.all()
@@ -117,17 +113,16 @@ class RemarkMasterDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = RemarkMaster.objects.all()
 
 
-class StudentSubjectView(generics.ListCreateAPIView):
+class StudentSubjectView(SessionScopedMixin, generics.ListCreateAPIView):
     serializer_class = StudentSubjectSerializer
     permission_classes = [IsSchoolStaff]
+    queryset = StudentSubject.objects.select_related('subject')
 
     def get_queryset(self):
-        qs = StudentSubject.objects.select_related('subject')
+        qs = super().get_queryset()
         params = self.request.query_params
         if params.get('student_id'):
             qs = qs.filter(student_id=params['student_id'])
-        if params.get('session_year'):
-            qs = qs.filter(session_year=params['session_year'])
         return qs
 
 
@@ -154,7 +149,7 @@ class CalculationMasterView(APIView):
 
     def get(self, request):
         qs = ExamType.objects.all()
-        sy = request.query_params.get('session_year')
+        sy = request.query_params.get('session_year') or current_session_year()
         if sy:
             qs = qs.filter(session_year=sy)
         data = [

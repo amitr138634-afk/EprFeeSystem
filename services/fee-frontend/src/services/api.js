@@ -52,9 +52,12 @@ api.interceptors.response.use(
 export default api
 
 export const authApi = {
-  login:   (data) => api.post('/auth/login/', data, { suppressErrorToast: true }),
-  logout:  (refresh) => api.post('/auth/logout/', { refresh }),
-  profile: () => api.get('/auth/profile/'),
+  login:         (data) => api.post('/auth/login/', data, { suppressErrorToast: true }),
+  logout:        (refresh) => api.post('/auth/logout/', { refresh }),
+  profile:       () => api.get('/auth/profile/'),
+  listSessions:  () => api.get('/auth/sessions/'),
+  changeSession: (data) => api.post('/auth/change-session/', data),
+  getSchoolCode: (data) => api.post('/auth/get-school-code/', data),
 }
 
 export const feeApi = {

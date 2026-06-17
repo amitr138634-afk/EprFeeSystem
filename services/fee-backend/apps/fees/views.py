@@ -20,6 +20,7 @@ from .serializers import (
     AdmissionQuerySerializer, AdmissionQueryListSerializer, RegistrationFeePaidSerializer
 )
 from utils.permissions import IsSchoolAdmin, IsSchoolStaff
+from utils.session import SessionScopedMixin, current_session_year, resolve_session_field
 import uuid
 
 
@@ -27,42 +28,33 @@ def generate_receipt_no(prefix='R'):
     return f"{prefix}{timezone.now().strftime('%Y%m%d')}{str(uuid.uuid4().int)[:6]}"
 
 
-class FeeHeadListCreateView(generics.ListCreateAPIView):
+class FeeHeadListCreateView(SessionScopedMixin, generics.ListCreateAPIView):
     serializer_class = FeeHeadSerializer
     permission_classes = [IsSchoolAdmin]
-    
-    def get_queryset(self):
-        qs = FeeHead.objects.all().order_by('-created_at')
-        session = self.request.query_params.get('session')
-        if session:
-            qs = qs.filter(session=session)
-        return qs
+    queryset = FeeHead.objects.all().order_by('-created_at')
 
 
-class FeeHeadDetailView(generics.RetrieveUpdateDestroyAPIView):
+class FeeHeadDetailView(SessionScopedMixin, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = FeeHeadSerializer
     permission_classes = [IsSchoolAdmin]
     queryset = FeeHead.objects.all()
 
 
-class FeeAmountListCreateView(generics.ListCreateAPIView):
+class FeeAmountListCreateView(SessionScopedMixin, generics.ListCreateAPIView):
     serializer_class = FeeAmountSerializer
     permission_classes = [IsSchoolAdmin]
+    queryset = FeeAmount.objects.all().order_by('head_name')
 
     def get_queryset(self):
-        qs = FeeAmount.objects.all().order_by('head_name')
+        qs = super().get_queryset()
         class_id = self.request.query_params.get('class_id')
         type_param = self.request.query_params.get('type')
-        session = self.request.query_params.get('session')
-        
         if class_id:
             qs = qs.filter(class_id=class_id)
         if type_param:
             qs = qs.filter(type=type_param)
-        if session:
-            qs = qs.filter(session=session)
         return qs
-    
+
     def create(self, request, *args, **kwargs):
         # Bulk create for multiple fee heads
         data_list = request.data if isinstance(request.data, list) else [request.data]
@@ -72,7 +64,7 @@ class FeeAmountListCreateView(generics.ListCreateAPIView):
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
-class FeeAmountDetailView(generics.RetrieveUpdateDestroyAPIView):
+class FeeAmountDetailView(SessionScopedMixin, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = FeeAmountSerializer
     permission_classes = [IsSchoolAdmin]
     queryset = FeeAmount.objects.all()
@@ -105,17 +97,16 @@ class FeeAmountBulkUpdateView(APIView):
         })
 
 
-class FeeStructureListCreateView(generics.ListCreateAPIView):
+class FeeStructureListCreateView(SessionScopedMixin, generics.ListCreateAPIView):
     serializer_class = FeeStructureSerializer
     permission_classes = [IsSchoolAdmin]
+    queryset = FeeStructure.objects.select_related('fee_head')
 
     def get_queryset(self):
-        qs = FeeStructure.objects.select_related('fee_head')
+        qs = super().get_queryset()
         params = self.request.query_params
         if params.get('class_id'):
             qs = qs.filter(class_id=params['class_id'])
-        if params.get('session_year'):
-            qs = qs.filter(session_year=params['session_year'])
         return qs
 
 
@@ -125,12 +116,13 @@ class DiscountHeadListCreateView(generics.ListCreateAPIView):
     queryset = DiscountHead.objects.filter(is_active=True)
 
 
-class StudentFeeDiscountView(generics.ListCreateAPIView):
+class StudentFeeDiscountView(SessionScopedMixin, generics.ListCreateAPIView):
     serializer_class = StudentFeeDiscountSerializer
     permission_classes = [IsSchoolStaff]
+    queryset = StudentFeeDiscount.objects.select_related('discount_head', 'fee_head')
 
     def get_queryset(self):
-        qs = StudentFeeDiscount.objects.select_related('discount_head', 'fee_head')
+        qs = super().get_queryset()
         if self.request.query_params.get('student_id'):
             qs = qs.filter(student_id=self.request.query_params['student_id'])
         return qs
@@ -159,7 +151,7 @@ class PayFeeView(APIView):
             class_name=data['class_name'],
             section_name=data['section_name'],
             admission_no=data['admission_no'],
-            session_year=data['session_year'],
+            session_year=current_session_year() or data['session_year'],
             payment_date=data['payment_date'],
             payment_mode=data['payment_mode'],
             cheque_no=data.get('cheque_no', ''),
@@ -186,12 +178,13 @@ class PayFeeView(APIView):
         return Response(FeeReceiptSerializer(receipt).data, status=status.HTTP_201_CREATED)
 
 
-class FeeReceiptListView(generics.ListAPIView):
+class FeeReceiptListView(SessionScopedMixin, generics.ListAPIView):
     serializer_class = FeeReceiptListSerializer
     permission_classes = [IsSchoolStaff]
+    queryset = FeeReceipt.objects.all()
 
     def get_queryset(self):
-        qs = FeeReceipt.objects.all()
+        qs = super().get_queryset()
         params = self.request.query_params
         if params.get('student_id'):
             qs = qs.filter(student_id=params['student_id'])
@@ -208,7 +201,7 @@ class FeeReceiptListView(generics.ListAPIView):
         return qs
 
 
-class FeeReceiptDetailView(generics.RetrieveAPIView):
+class FeeReceiptDetailView(SessionScopedMixin, generics.RetrieveAPIView):
     serializer_class = FeeReceiptSerializer
     permission_classes = [IsSchoolStaff]
     queryset = FeeReceipt.objects.all()
@@ -220,6 +213,9 @@ class DailyCollectionReportView(APIView):
     def get(self, request):
         date = request.query_params.get('date', str(timezone.now().date()))
         receipts = FeeReceipt.objects.filter(payment_date=date, status='paid')
+        session_year = current_session_year()
+        if session_year:
+            receipts = receipts.filter(session_year=session_year)
         total = receipts.aggregate(total=Sum('net_amount'))['total'] or 0
         by_mode = receipts.values('payment_mode').annotate(
             count=Count('id'), amount=Sum('net_amount')
@@ -238,8 +234,9 @@ class ClasswiseCollectionReportView(APIView):
     def get(self, request):
         params = request.query_params
         qs = FeeReceipt.objects.filter(status='paid')
-        if params.get('session_year'):
-            qs = qs.filter(session_year=params['session_year'])
+        session_year = params.get('session_year') or current_session_year()
+        if session_year:
+            qs = qs.filter(session_year=session_year)
         if params.get('from_date') and params.get('to_date'):
             qs = qs.filter(payment_date__range=[params['from_date'], params['to_date']])
         data = qs.values('class_name').annotate(
@@ -254,7 +251,7 @@ class FeeDefaulterView(APIView):
 
     def get(self, request):
         params = request.query_params
-        session_year = params.get('session_year', '')
+        session_year = params.get('session_year') or current_session_year() or ''
         paid_student_ids = FeeReceipt.objects.filter(
             session_year=session_year, status='paid'
         ).values_list('student_id', flat=True).distinct()
@@ -265,15 +262,10 @@ class FeeDefaulterView(APIView):
         })
 
 
-class BookSetListCreateView(generics.ListCreateAPIView):
+class BookSetListCreateView(SessionScopedMixin, generics.ListCreateAPIView):
     serializer_class = BookSetSerializer
     permission_classes = [IsSchoolAdmin]
-
-    def get_queryset(self):
-        qs = BookSet.objects.prefetch_related('books')
-        if self.request.query_params.get('session_year'):
-            qs = qs.filter(session_year=self.request.query_params['session_year'])
-        return qs
+    queryset = BookSet.objects.prefetch_related('books')
 
 
 class BookListCreateView(generics.ListCreateAPIView):
@@ -351,7 +343,7 @@ class AdditionalFeeListCreateView(generics.ListCreateAPIView):
     queryset = AdditionalFee.objects.filter(is_active=True)
 
 
-class FeeStructureDetailView(generics.RetrieveUpdateDestroyAPIView):
+class FeeStructureDetailView(SessionScopedMixin, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = FeeStructureSerializer
     permission_classes = [IsSchoolAdmin]
     queryset = FeeStructure.objects.all()
@@ -386,13 +378,13 @@ class MonthlyCollectionReportView(APIView):
         params = request.query_params
         month = params.get('month')
         year = params.get('year')
-        session_year = params.get('session_year', '')
+        session_year = params.get('session_year') or current_session_year() or ''
 
         qs = FeeReceipt.objects.filter(status='paid')
+        if session_year:
+            qs = qs.filter(session_year=session_year)
         if month and year:
             qs = qs.filter(payment_date__month=month, payment_date__year=year)
-        elif session_year:
-            qs = qs.filter(session_year=session_year)
 
         total = qs.aggregate(total=Sum('net_amount'))['total'] or 0
         by_mode = qs.values('payment_mode').annotate(
@@ -412,7 +404,7 @@ class MonthlyCollectionReportView(APIView):
         })
 
 
-class BookSetDetailView(generics.RetrieveUpdateDestroyAPIView):
+class BookSetDetailView(SessionScopedMixin, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = BookSetSerializer
     permission_classes = [IsSchoolAdmin]
     queryset = BookSet.objects.all()
@@ -442,25 +434,25 @@ class AdditionalFeeDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = AdditionalFee.objects.all()
 
 
-class AdmissionQueryListCreateView(generics.ListCreateAPIView):
+class AdmissionQueryListCreateView(SessionScopedMixin, generics.ListCreateAPIView):
     permission_classes = [IsSchoolStaff]
-    
+    queryset = AdmissionQuery.objects.all()
+    session_scope_create = False  # injected manually below alongside created_by
+
     def get_serializer_class(self):
         if self.request.method == 'GET':
             return AdmissionQueryListSerializer
         return AdmissionQuerySerializer
-    
+
     def get_queryset(self):
-        qs = AdmissionQuery.objects.all()
+        qs = super().get_queryset()
         params = self.request.query_params
-        
+
         # Filters
         if params.get('status'):
             qs = qs.filter(status=params['status'])
         if params.get('adm_status'):
             qs = qs.filter(adm_status=params['adm_status'])
-        if params.get('session'):
-            qs = qs.filter(session=params['session'])
         if params.get('class_id'):
             qs = qs.filter(class_id=params['class_id'])
         if params.get('source'):
@@ -477,8 +469,13 @@ class AdmissionQueryListCreateView(generics.ListCreateAPIView):
         return qs
     
     def perform_create(self, serializer):
-        query = serializer.save(created_by=self.request.user.id if hasattr(self.request.user, 'id') else None)
-        
+        extra = {'created_by': self.request.user.id if hasattr(self.request.user, 'id') else None}
+        session_year = current_session_year()
+        field = resolve_session_field(serializer.Meta.model) if session_year else None
+        if field:
+            extra[field] = session_year
+        query = serializer.save(**extra)
+
         # Send email notification to father's email
         if query.father_email:
             self.send_query_email(query)
@@ -528,7 +525,7 @@ School Administration
             print(traceback.format_exc())
 
 
-class AdmissionQueryDetailView(generics.RetrieveUpdateDestroyAPIView):
+class AdmissionQueryDetailView(SessionScopedMixin, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = AdmissionQuerySerializer
     permission_classes = [IsSchoolStaff]
     queryset = AdmissionQuery.objects.all()
@@ -860,19 +857,19 @@ class StudentsByClassView(APIView):
         from apps.masters.models import Student
         
         class_name = request.query_params.get('class_name')
-        session = request.query_params.get('session')
-        
+        session = request.query_params.get('session') or current_session_year()
+
         if not class_name:
             return Response(
                 {'detail': 'class_name is required'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
+
         students = Student.objects.filter(class_name=class_name, status='active')
-        
+
         if session:
             students = students.filter(session=session)
-        
+
         students = students.order_by('student_name')
         
         data = [{

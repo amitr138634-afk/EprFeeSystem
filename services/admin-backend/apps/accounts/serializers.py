@@ -3,6 +3,50 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from .models import User
 
 
+def session_db_alias(user):
+    """Resolve the tenant DB alias for a user's school.
+
+    Needed at LOGIN time: there is no JWT yet, so TenantMiddleware hasn't set the
+    tenant context and SessionMaster queries would otherwise hit the central DB
+    (which has no session_master table). Authenticated requests don't need this —
+    the router already routes to the active tenant.
+    """
+    if not getattr(user, 'school_id', None):
+        return None
+    try:
+        from utils.tenant import register_school_database
+        return register_school_database(user.school_id)
+    except Exception:
+        return None
+
+
+def active_sessions_qs(using=None):
+    """All active sessions, latest year first (optionally from a specific DB)."""
+    from apps.students.models import SessionMaster
+    qs = SessionMaster.objects.filter(status=True).order_by('-session_year')
+    return qs.using(using) if using else qs
+
+
+def resolve_session(session_id=None, using=None):
+    """Return the requested active SessionMaster, or the latest active one as default."""
+    qs = active_sessions_qs(using)
+    session = None
+    if session_id:
+        session = qs.filter(id=session_id).first()
+    if session is None:
+        session = qs.first()
+    return session
+
+
+def build_session_tokens(user, session):
+    """Mint a fresh refresh/access pair carrying the standard + active-session claims."""
+    refresh = CustomTokenObtainPairSerializer.get_token(user)
+    if session is not None:
+        refresh['session_id'] = session.id
+        refresh['current_session'] = session.session_year
+    return {'refresh': str(refresh), 'access': str(refresh.access_token)}
+
+
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     session_id = serializers.IntegerField(required=False, allow_null=True, write_only=True)
     
@@ -76,59 +120,28 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             'school_name': school_name,
         }
         
-        # Get session - either from session_id or default to first active session
+        # Embed the selected (or default latest) active session into the tokens.
+        # Route to the user's tenant DB explicitly — no tenant context exists yet
+        # during login.
         try:
-            from apps.students.models import SessionMaster
-            if session_id:
-                selected_session = SessionMaster.objects.filter(
-                    id=session_id,
-                    status=True
-                ).first()
-            else:
-                # Default to first active session (latest year)
-                selected_session = SessionMaster.objects.filter(
-                    status=True
-                ).order_by('-session_year').first()
-            
-            if selected_session:
-                data['current_session'] = {
-                    'id': selected_session.id,
-                    'session_year': selected_session.session_year,
-                }
-                # Add to JWT token
-                data['access'] = self._add_session_to_token(data['access'], selected_session)
-                data['refresh'] = self._add_session_to_token(data['refresh'], selected_session)
+            alias = session_db_alias(self.user)
+            session = resolve_session(session_id, using=alias)
+            if session is not None:
+                tokens = build_session_tokens(self.user, session)
+                data['access'] = tokens['access']
+                data['refresh'] = tokens['refresh']
+                data['current_session'] = {'id': session.id, 'session_year': session.session_year}
             else:
                 data['current_session'] = None
-            
-            # Also return available sessions list
-            active_sessions = SessionMaster.objects.filter(status=True).order_by('-session_year')
-            data['available_sessions'] = [{
-                'id': s.id,
-                'session_year': s.session_year,
-            } for s in active_sessions]
-            
+
+            data['available_sessions'] = [
+                {'id': s.id, 'session_year': s.session_year} for s in active_sessions_qs(using=alias)
+            ]
         except Exception:
             data['current_session'] = None
             data['available_sessions'] = []
-        
+
         return data
-    
-    def _add_session_to_token(self, token_str, session):
-        """Add session info to existing JWT token"""
-        from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
-        try:
-            # Decode token
-            if 'access' in self.context.get('request', {}).path:
-                token = AccessToken(token_str)
-            else:
-                token = RefreshToken(token_str)
-            
-            token['current_session'] = session.session_year
-            token['session_id'] = session.id
-            return str(token)
-        except:
-            return token_str
 
 
 class UserSerializer(serializers.ModelSerializer):

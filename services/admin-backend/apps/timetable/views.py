@@ -6,6 +6,7 @@ from .serializers import (
     SubjectSerializer, PeriodSerializer, TimetableSerializer, SubstituteTeacherSerializer
 )
 from utils.permissions import IsSchoolStaff, IsSchoolAdmin
+from utils.session import SessionScopedMixin, current_session_year
 
 
 class SubjectListCreateView(generics.ListCreateAPIView):
@@ -20,12 +21,13 @@ class PeriodListCreateView(generics.ListCreateAPIView):
     queryset = Period.objects.all()
 
 
-class TimetableListCreateView(generics.ListCreateAPIView):
+class TimetableListCreateView(SessionScopedMixin, generics.ListCreateAPIView):
     serializer_class = TimetableSerializer
     permission_classes = [IsSchoolStaff]
+    queryset = Timetable.objects.select_related('class_ref', 'subject', 'teacher', 'period').prefetch_related('sections')
 
     def get_queryset(self):
-        qs = Timetable.objects.select_related('class_ref', 'subject', 'teacher', 'period').prefetch_related('sections')
+        qs = super().get_queryset()
         params = self.request.query_params
         if params.get('class_id'):
             qs = qs.filter(class_ref_id=params['class_id'])
@@ -35,12 +37,10 @@ class TimetableListCreateView(generics.ListCreateAPIView):
             qs = qs.filter(teacher_id=params['teacher_id'])
         if params.get('day'):
             qs = qs.filter(day=params['day'])
-        if params.get('session_year'):
-            qs = qs.filter(session_year=params['session_year'])
         return qs.distinct()  # distinct() because ManyToMany can create duplicates
 
 
-class TimetableDetailView(generics.RetrieveUpdateDestroyAPIView):
+class TimetableDetailView(SessionScopedMixin, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = TimetableSerializer
     permission_classes = [IsSchoolAdmin]
     queryset = Timetable.objects.all()
@@ -50,9 +50,11 @@ class TeacherTimetableView(APIView):
     permission_classes = [IsSchoolStaff]
 
     def get(self, request, teacher_id):
-        timetable = Timetable.objects.filter(
-            teacher_id=teacher_id
-        ).select_related('class_ref', 'section', 'subject', 'period').order_by('day', 'period__order')
+        timetable = Timetable.objects.filter(teacher_id=teacher_id)
+        session_year = current_session_year()
+        if session_year:
+            timetable = timetable.filter(session_year=session_year)
+        timetable = timetable.select_related('class_ref', 'section', 'subject', 'period').order_by('day', 'period__order')
         serializer = TimetableSerializer(timetable, many=True)
         return Response(serializer.data)
 

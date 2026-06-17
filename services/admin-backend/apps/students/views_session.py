@@ -1,3 +1,4 @@
+import copy
 from rest_framework import generics
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -27,23 +28,20 @@ class SessionMasterListCreateView(generics.ListCreateAPIView):
         if not school_code:
             return SessionMaster.objects.none()  # Return empty if no school_code provided
         
-        # Dynamically add tenant DB if not exists
+        # Dynamically register the tenant DB if not already known. Copy the full
+        # default config (OPTIONS, ATOMIC_REQUESTS, …) and just override NAME — a
+        # partial dict crashes Django's connection setup (e.g. KeyError 'OPTIONS').
         db_name = f'school_erp_{school_code}'
         if db_name not in settings.DATABASES:
-            settings.DATABASES[db_name] = {
-                'ENGINE': 'django.db.backends.postgresql',
-                'NAME': db_name,
-                'USER': settings.DATABASES['default']['USER'],
-                'PASSWORD': settings.DATABASES['default']['PASSWORD'],
-                'HOST': settings.DATABASES['default']['HOST'],
-                'PORT': settings.DATABASES['default']['PORT'],
-            }
-        
+            cfg = copy.deepcopy(settings.DATABASES['default'])
+            cfg['NAME'] = db_name
+            settings.DATABASES[db_name] = cfg
+
         try:
-            # Query from tenant database
-            return SessionMaster.objects.using(db_name).all().order_by('-session_year')
-        except Exception as e:
-            # If tenant DB doesn't exist, return empty
+            # Force evaluation here so a missing DB/table is caught (not during
+            # serialization, which would escape this handler as a 500).
+            return list(SessionMaster.objects.using(db_name).all().order_by('-session_year'))
+        except Exception:
             return SessionMaster.objects.none()
 
 

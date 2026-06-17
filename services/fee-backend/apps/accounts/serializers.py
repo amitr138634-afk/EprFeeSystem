@@ -17,7 +17,53 @@ def get_school_name(school_id):
         return ''
 
 
+def session_db_alias(user):
+    """Resolve the tenant DB alias for a user's school.
+
+    Needed at LOGIN time: there is no JWT yet, so TenantMiddleware hasn't set the
+    tenant context and SessionMaster queries would otherwise hit the central DB
+    (which has no session_master table). Authenticated requests don't need this —
+    the router already routes to the active tenant.
+    """
+    if not getattr(user, 'school_id', None):
+        return None
+    try:
+        from utils.tenant import register_school_database
+        return register_school_database(user.school_id)
+    except Exception:
+        return None
+
+
+def active_sessions_qs(using=None):
+    """All active sessions, latest year first (optionally from a specific DB)."""
+    from apps.masters.models import SessionMaster
+    qs = SessionMaster.objects.filter(status=True).order_by('-session_year')
+    return qs.using(using) if using else qs
+
+
+def resolve_session(session_id=None, using=None):
+    """Return the requested active SessionMaster, or the latest active one as default."""
+    qs = active_sessions_qs(using)
+    session = None
+    if session_id:
+        session = qs.filter(id=session_id).first()
+    if session is None:
+        session = qs.first()
+    return session
+
+
+def build_session_tokens(user, session):
+    """Mint a fresh refresh/access pair carrying the standard + active-session claims."""
+    refresh = CustomTokenObtainPairSerializer.get_token(user)
+    if session is not None:
+        refresh['session_id'] = session.id
+        refresh['current_session'] = session.session_year
+    return {'refresh': str(refresh), 'access': str(refresh.access_token)}
+
+
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    session_id = serializers.IntegerField(required=False, allow_null=True, write_only=True)
+
     @classmethod
     def get_token(cls, user):
         token = super().get_token(user)
@@ -58,6 +104,8 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
                 {'detail': 'Incorrect password. Please try again.', 'code': 'wrong_password'}
             )
 
+        session_id = attrs.pop('session_id', None)
+
         data = super().validate(attrs)
         data['user'] = {
             'id': self.user.id,
@@ -68,6 +116,27 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             'school_id': self.user.school_id,
             'school_name': get_school_name(self.user.school_id),
         }
+
+        # Embed the selected (or default latest) active session into the tokens.
+        # Route to the user's tenant DB explicitly — no tenant context exists yet
+        # during login.
+        try:
+            alias = session_db_alias(self.user)
+            session = resolve_session(session_id, using=alias)
+            if session is not None:
+                tokens = build_session_tokens(self.user, session)
+                data['access'] = tokens['access']
+                data['refresh'] = tokens['refresh']
+                data['current_session'] = {'id': session.id, 'session_year': session.session_year}
+            else:
+                data['current_session'] = None
+
+            data['available_sessions'] = [
+                {'id': s.id, 'session_year': s.session_year} for s in active_sessions_qs(using=alias)
+            ]
+        except Exception:
+            data['current_session'] = None
+            data['available_sessions'] = []
         return data
 
 

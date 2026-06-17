@@ -50,7 +50,8 @@ class FeeAmount(models.Model):
 
 class FeeHead(models.Model):
     # id auto-increment by default
-    session = models.CharField(max_length=20, default='2024-25')
+    # Session is injected from the active session (see SessionScopedMixin); no hardcoded default.
+    session = models.CharField(max_length=20, blank=True)
     head1 = models.CharField(max_length=100, blank=True, null=True)
     head2 = models.CharField(max_length=100, blank=True, null=True)
     head3 = models.CharField(max_length=100, blank=True, null=True)

@@ -6,9 +6,11 @@ from django.utils import timezone
 from .models import StudentAttendance, StaffAttendance, Holiday
 from .serializers import (
     StudentAttendanceSerializer, BulkAttendanceSerializer,
-    StaffAttendanceSerializer, HolidaySerializer
+    StaffAttendanceSerializer, BulkStaffAttendanceSerializer, HolidaySerializer
 )
 from apps.students.models import Student
+from apps.students.utils import class_name_lookup_map, section_name_lookup_map
+from apps.staff.models import Staff
 from utils.permissions import IsSchoolStaff, IsSchoolAdmin
 
 
@@ -146,6 +148,158 @@ class StaffAttendanceListCreateView(generics.ListCreateAPIView):
         return qs
 
 
+def _filtered_staff(params):
+    """Active staff queryset with the common department/designation/type/search filters."""
+    qs = Staff.objects.filter(status='active').select_related('department', 'designation')
+    if params.get('department_id'):
+        qs = qs.filter(department_id=params['department_id'])
+    if params.get('designation_id'):
+        qs = qs.filter(designation_id=params['designation_id'])
+    if params.get('staff_type'):
+        qs = qs.filter(staff_type=params['staff_type'])
+    if params.get('search'):
+        q = params['search']
+        qs = qs.filter(
+            Q(first_name__icontains=q) | Q(last_name__icontains=q) |
+            Q(employee_id__icontains=q)
+        )
+    return qs
+
+
+class StaffAttendanceRosterView(APIView):
+    """Full active-staff roster for a date, merged with any saved attendance.
+
+    Powers both the marking page (pre-loads existing marks) and the date-wise
+    summary (unmarked staff surface as marked=False)."""
+    permission_classes = [IsSchoolStaff]
+
+    def get(self, request):
+        params = request.query_params
+        date = params.get('date', str(timezone.now().date()))
+        staff_qs = _filtered_staff(params)
+
+        records = {
+            r.staff_id: r
+            for r in StaffAttendance.objects.filter(
+                date=date, staff__in=staff_qs
+            )
+        }
+
+        result = []
+        for s in staff_qs:
+            rec = records.get(s.id)
+            result.append({
+                'staff_id': s.id,
+                'employee_id': s.employee_id,
+                'staff_name': s.full_name,
+                'designation': s.designation.name if s.designation else '',
+                'department': s.department.name if s.department else '',
+                'staff_type': s.staff_type,
+                'marked': rec is not None,
+                'status': rec.status if rec else None,
+                'check_in': rec.check_in if rec else None,
+                'check_out': rec.check_out if rec else None,
+                'remarks': rec.remarks if rec else '',
+            })
+        return Response(result)
+
+
+class BulkStaffAttendanceView(APIView):
+    """Bulk upsert of staff attendance for a single date."""
+    permission_classes = [IsSchoolStaff]
+
+    def post(self, request):
+        serializer = BulkStaffAttendanceSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        data = serializer.validated_data
+        date = data['date']
+        count = 0
+        for att in data['attendance']:
+            staff_id = att.get('staff') or att.get('staff_id')
+            if not staff_id:
+                continue
+            StaffAttendance.objects.update_or_create(
+                staff_id=staff_id,
+                date=date,
+                defaults={
+                    'status': att.get('status', 'present'),
+                    'check_in': att.get('check_in') or None,
+                    'check_out': att.get('check_out') or None,
+                    'remarks': att.get('remarks', ''),
+                },
+            )
+            count += 1
+        return Response({'detail': f'{count} attendance records saved.', 'count': count})
+
+
+class StaffMonthlyReportView(APIView):
+    """Per-staff monthly attendance aggregation with a day-by-day grid."""
+    permission_classes = [IsSchoolStaff]
+
+    def get(self, request):
+        params = request.query_params
+        today = timezone.now().date()
+        month = int(params.get('month', today.month))
+        year = int(params.get('year', today.year))
+        staff_qs = _filtered_staff(params)
+
+        # Bucket each staff member's marks for the month: staff_id -> {day: status}
+        by_staff = {}
+        for r in StaffAttendance.objects.filter(
+            date__month=month, date__year=year, staff__in=staff_qs
+        ):
+            by_staff.setdefault(r.staff_id, {})[r.date.day] = r.status
+
+        CODE = {
+            'present': 'P', 'absent': 'A', 'late': 'L',
+            'half_day': 'H', 'leave': 'LE', 'holiday': 'HO',
+        }
+
+        result = []
+        for s in staff_qs:
+            days_map = by_staff.get(s.id, {})
+            present = absent = late = half = leave = holiday = 0
+            grid = {}
+            for day, st in days_map.items():
+                grid[day] = CODE.get(st, '?')
+                if st == 'present':
+                    present += 1
+                elif st == 'absent':
+                    absent += 1
+                elif st == 'late':
+                    late += 1
+                elif st == 'half_day':
+                    half += 1
+                elif st == 'leave':
+                    leave += 1
+                elif st == 'holiday':
+                    holiday += 1
+
+            counted = present + absent + late + half
+            effective = present + late + (0.5 * half)
+            pct = round((effective / counted) * 100, 1) if counted else None
+
+            result.append({
+                'staff_id': s.id,
+                'employee_id': s.employee_id,
+                'staff_name': s.full_name,
+                'designation': s.designation.name if s.designation else '',
+                'department': s.department.name if s.department else '',
+                'present_days': present,
+                'absent_days': absent,
+                'late_days': late,
+                'half_days': half,
+                'leave_days': leave,
+                'holiday_days': holiday,
+                'total_marked': counted,
+                'attendance_percentage': pct,
+                'days': grid,
+            })
+        return Response(result)
+
+
 class HolidayListCreateView(generics.ListCreateAPIView):
     serializer_class = HolidaySerializer
     permission_classes = [IsSchoolAdmin]
@@ -168,10 +322,11 @@ class DashboardStatsView(APIView):
     permission_classes = [IsSchoolStaff]
 
     def get(self, request):
-        from apps.students.models import Student, Section
         from apps.staff.models import Staff, LeaveRequest
 
         today = timezone.now().date()
+        class_names = class_name_lookup_map()
+        section_names = section_name_lookup_map()
 
         total_students = Student.objects.filter(status='active').count()
         total_staff = Staff.objects.filter(status='active').count()
@@ -189,14 +344,18 @@ class DashboardStatsView(APIView):
         class_attendance = (
             StudentAttendance.objects
             .filter(date=today)
-            .values('student__class_ref__name', 'student__class_ref__order')
+            .values('student__class_name')
             .annotate(
                 total=Count('id'),
                 present=Count('id', filter=Q(status='present')),
                 absent=Count('id', filter=Q(status='absent')),
             )
-            .order_by('student__class_ref__order')
+            .order_by('student__class_name')
         )
+        class_attendance = [
+            {**row, 'student__class_name': class_names.get(str(row['student__class_name']), row['student__class_name'])}
+            for row in class_attendance
+        ]
 
         # --- Absent staff today ---
         absent_staff = [
@@ -225,15 +384,14 @@ class DashboardStatsView(APIView):
         # --- Birthdays today ---
         student_birthdays = [
             {
-                'name': s.full_name,
+                'name': s.student_name,
                 'class_section': (
-                    f"{s.class_ref.name}-{s.section.name}" if s.class_ref and s.section
-                    else (s.class_ref.name if s.class_ref else '')
+                    f"{class_names.get(str(s.class_name), s.class_name)}-{section_names.get(str(s.section), s.section)}"
+                    if s.class_name else ''
                 ),
             }
             for s in Student.objects
                 .filter(status='active', date_of_birth__month=today.month, date_of_birth__day=today.day)
-                .select_related('class_ref', 'section')
         ]
         staff_birthdays = [
             {
@@ -248,32 +406,42 @@ class DashboardStatsView(APIView):
         # --- Absent / leave students today ---
         absent_students_list = [
             {
-                'name': att.student.full_name,
+                'name': att.student.student_name,
                 'class_section': (
-                    f"{att.student.class_ref.name}-{att.student.section.name}"
-                    if att.student.class_ref and att.student.section else ''
+                    f"{class_names.get(str(att.student.class_name), att.student.class_name)}"
+                    f"-{section_names.get(str(att.student.section), att.student.section)}"
+                    if att.student.class_name else ''
                 ),
                 'type': att.get_status_display(),
             }
             for att in StudentAttendance.objects
                 .filter(date=today, status__in=['absent', 'leave'])
-                .select_related('student', 'student__class_ref', 'student__section')
+                .select_related('student')
         ]
 
         # --- Per-section grids (attendance + homework status) ---
         sec_counts = {}
         for row in (
             StudentAttendance.objects.filter(date=today)
-            .values('student__section')
+            .values('student__class_name', 'student__section')
             .annotate(total=Count('id'), present=Count('id', filter=Q(status='present')))
         ):
-            sec_counts[row['student__section']] = row
+            sec_counts[(row['student__class_name'], row['student__section'])] = row
 
         class_attendance_status = []
         class_hw_status = []
-        for sec in Section.objects.select_related('class_ref').order_by('class_ref__order', 'name'):
-            label = f"{sec.class_ref.name}-{sec.name}"
-            row = sec_counts.get(sec.id)
+        distinct_sections = (
+            Student.objects.filter(status='active')
+            .values('class_name', 'section')
+            .distinct()
+            .order_by('class_name', 'section')
+        )
+        for cs in distinct_sections:
+            label = (
+                f"{class_names.get(str(cs['class_name']), cs['class_name'])}"
+                f"-{section_names.get(str(cs['section']), cs['section'])}"
+            )
+            row = sec_counts.get((cs['class_name'], cs['section']))
             class_attendance_status.append({
                 'label': label,
                 'marked': bool(row),

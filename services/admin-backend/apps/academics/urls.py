@@ -17,6 +17,19 @@ urlpatterns = [
     path('grade-scale/', views.GradeScaleListCreateView.as_view(), name='grade-scale-list'),
     path('grade-scale/<int:pk>/', views.GradeScaleDetailView.as_view(), name='grade-scale-detail'),
     path('calculation/', views.CalculationMasterView.as_view(), name='calculation-master'),
+    # CCE — Grade Master, Test Master, Assign Subject & Test
+    path('grades/', views.GradeListCreateView.as_view(), name='grade-list'),
+    path('grades/<int:pk>/', views.GradeDetailView.as_view(), name='grade-detail'),
+    path('tests/', views.TestListCreateView.as_view(), name='test-list'),
+    path('tests/<int:pk>/', views.TestDetailView.as_view(), name='test-detail'),
+    path('co-scholastic-subjects/', views.CoScholasticSubjectListCreateView.as_view(), name='co-scholastic-list'),
+    path('co-scholastic-subjects/<int:pk>/', views.CoScholasticSubjectDetailView.as_view(), name='co-scholastic-detail'),
+    path('co-scholastic-assignments/', views.CoScholasticAssignmentView.as_view(), name='co-scholastic-assignments'),
+    path('assign-subject-test/', views.AssignSubjectTestView.as_view(), name='assign-subject-test'),
+    # CCE — Marks Feeding
+    path('marks-feeding/tests/', views.MarksFeedingTestsView.as_view(), name='marks-feeding-tests'),
+    path('marks-feeding/subjects/', views.MarksFeedingSubjectsView.as_view(), name='marks-feeding-subjects'),
+    path('marks-feeding/grid/', views.MarksFeedingGridView.as_view(), name='marks-feeding-grid'),
     # NOTE: ClassResultView and ReportCardView temporarily disabled - use _subjects_for
     # path('results/', views.ClassResultView.as_view(), name='class-results'),
     # path('report-card/', views.ReportCardView.as_view(), name='report-card'),

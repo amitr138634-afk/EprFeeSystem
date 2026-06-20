@@ -57,6 +57,9 @@ import MonthlySubstituteReport from './pages/timetable/MonthlySubstituteReport'
 // School Admin — Masters
 import MastersSubjects from './pages/masters/SubjectMaster'
 import MastersPeriods from './pages/masters/PeriodMaster'
+import GradeMaster from './pages/cce/GradeMaster'
+import TestMaster from './pages/cce/TestMaster'
+import CoScholasticSubjectMaster from './pages/cce/CoScholasticSubjectMaster'
 
 // School Admin — CCE / Assign Subject & Test
 import ExamTypes from './pages/cce/ExamTypes'
@@ -70,6 +73,7 @@ import SignatureMaster from './pages/cce/SignatureMaster'
 import ClassAllocation from './pages/cce/ClassAllocation'
 import TeacherAllocation from './pages/cce/TeacherAllocation'
 import StudentSubjects from './pages/cce/StudentSubjects'
+import MultipleSubjectMapping from './pages/cce/MultipleSubjectMapping'
 
 // School Admin — Academics
 import GradeScale from './pages/academics/GradeScale'
@@ -169,6 +173,7 @@ export default function App() {
         <Route path="cce/class-allocation"   element={<SR roles={ADMIN_ONLY}><ClassAllocation /></SR>} />
         <Route path="cce/teacher-allocation" element={<SR roles={ADMIN_ONLY}><TeacherAllocation /></SR>} />
         <Route path="cce/student-subjects"   element={<SR roles={ADMIN_ONLY}><StudentSubjects /></SR>} />
+        <Route path="cce/multiple-subject-mapping" element={<SR roles={ADMIN_ONLY}><MultipleSubjectMapping /></SR>} />
 
         {/* ── Academics ────────────────────────────────────────────── */}
         <Route path="academics/grade-scale" element={<SR roles={ADMIN_ONLY}><GradeScale /></SR>} />
@@ -178,6 +183,9 @@ export default function App() {
         {/* ── Masters ──────────────────────────────────────────────── */}
         <Route path="masters/subjects" element={<SR roles={ADMIN_ONLY}><MastersSubjects /></SR>} />
         <Route path="masters/periods"  element={<SR roles={ADMIN_ONLY}><MastersPeriods /></SR>} />
+        <Route path="cce/grade-master" element={<SR roles={ADMIN_ONLY}><GradeMaster /></SR>} />
+        <Route path="cce/test-master"  element={<SR roles={ADMIN_ONLY}><TestMaster /></SR>} />
+        <Route path="cce/co-scholastic-subjects" element={<SR roles={ADMIN_ONLY}><CoScholasticSubjectMaster /></SR>} />
 
         {/* ── Report Card ──────────────────────────────────────────── */}
         <Route path="report-card/generate" element={<SR roles={SCHOOL_ROLES}><GenerateReportCard /></SR>} />

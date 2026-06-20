@@ -9,7 +9,7 @@ from utils.permissions import IsSchoolStaff, IsSchoolAdmin
 from utils.session import SessionScopedMixin, current_session_year
 
 
-class SubjectListCreateView(generics.ListCreateAPIView):
+class SubjectListCreateView(SessionScopedMixin, generics.ListCreateAPIView):
     serializer_class = SubjectSerializer
     permission_classes = [IsSchoolStaff]
     queryset = Subject.objects.all()
@@ -59,7 +59,7 @@ class TeacherTimetableView(APIView):
         return Response(serializer.data)
 
 
-class SubjectDetailView(generics.RetrieveUpdateDestroyAPIView):
+class SubjectDetailView(SessionScopedMixin, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = SubjectSerializer
     permission_classes = [IsSchoolAdmin]
     queryset = Subject.objects.all()

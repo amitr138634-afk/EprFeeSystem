@@ -46,4 +46,13 @@ urlpatterns = [
     path('students/search/', views.StudentSearchView.as_view(), name='student-search'),
     path('students/<int:student_id>/profile/', views.StudentProfileView.as_view(), name='student-profile'),
     path('students/by-class/', views.StudentsByClassView.as_view(), name='students-by-class'),
+    path('students/<int:student_id>/pay/', views.PayStudentFeeView.as_view(), name='student-pay-fee'),
+    path('students/<int:student_id>/detail/', views.StudentDetailUpdateView.as_view(), name='student-detail-update'),
+
+    # Per-head, per-month discounts
+    path('discounts/monthly/', views.StudentFeeHeadMonthDiscountView.as_view(), name='student-monthly-discount'),
+
+    # Fee Management — Summary & Transactions
+    path('summary/', views.FeeSummaryView.as_view(), name='fee-summary'),
+    path('transactions/', views.FeeTransactionView.as_view(), name='fee-transactions'),
 ]

@@ -86,7 +86,7 @@ class StudentStrengthView(APIView):
         qs = Student.objects.all()
         if session:
             qs = qs.filter(session=session)
-        
+
         data = (
             qs
             .values('class_name')
@@ -99,5 +99,17 @@ class StudentStrengthView(APIView):
             )
             .order_by('class_name')
         )
-        
-        return Response({'results': list(data)})
+
+        # `class_name` above is the raw ClassMaster id grouped from the Student
+        # table — resolve each to its display name via ClassMaster.
+        classes = ClassMaster.objects.filter(session=session) if session else ClassMaster.objects.all()
+        class_names = {str(c.id): c.class_name for c in classes}
+
+        results = []
+        for row in data:
+            raw = row['class_name']
+            row['class_name'] = class_names.get(str(raw), raw)
+            results.append(row)
+        results.sort(key=lambda r: r['class_name'])
+
+        return Response({'results': results})

@@ -6,7 +6,7 @@ import toast from 'react-hot-toast'
 import { Plus, Search, Phone, Mail, Calendar, User, X, Save, Eye, Edit2, Trash2 } from 'lucide-react'
 
 export default function AdmissionQuery() {
-  const [activeTab, setActiveTab] = useState('query') // query, enquiry-list, approval
+  const [activeTab, setActiveTab] = useState('query') // query, enquiry-list, approval, approve-list
   const queryClient = useQueryClient()
 
   return (
@@ -50,6 +50,16 @@ export default function AdmissionQuery() {
           >
             Admission Approval
           </button>
+          <button
+            onClick={() => setActiveTab('approve-list')}
+            className={`pb-3 px-1 border-b-2 font-medium text-sm transition-colors ${
+              activeTab === 'approve-list'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            Approve List
+          </button>
         </nav>
       </div>
 
@@ -57,6 +67,7 @@ export default function AdmissionQuery() {
       {activeTab === 'query' && <QueryTab />}
       {activeTab === 'enquiry-list' && <EnquiryListTab />}
       {activeTab === 'approval' && <ApprovalTab />}
+      {activeTab === 'approve-list' && <ApproveListTab />}
     </div>
   )
 }
@@ -945,6 +956,101 @@ function ApprovalTab() {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// Approve List Tab Component — shows both approved and unapproved decisions
+function ApproveListTab() {
+  const { data: approvedQueries = [], isLoading: loadingApproved } = useQuery({
+    queryKey: ['admission-queries', { adm_status: 'approved' }],
+    queryFn: () => feeApi.queries({ adm_status: 'approved' }).then(r => r.data.results || r.data)
+  })
+
+  const { data: unapprovedQueries = [], isLoading: loadingUnapproved } = useQuery({
+    queryKey: ['admission-queries', { adm_status: 'unapproved' }],
+    queryFn: () => feeApi.queries({ adm_status: 'unapproved' }).then(r => r.data.results || r.data)
+  })
+
+  const renderTable = (rows, emptyText, statusBadge) => (
+    <div className="overflow-x-auto">
+      <table className="w-full">
+        <thead className="bg-gray-50 border-b border-gray-200">
+          <tr>
+            <th className="table-header text-left px-4 py-3">S.No</th>
+            <th className="table-header text-left px-4 py-3">Student Name</th>
+            <th className="table-header text-left px-4 py-3">Father Name</th>
+            <th className="table-header text-left px-4 py-3">Contact</th>
+            <th className="table-header text-left px-4 py-3">Class</th>
+            <th className="table-header text-left px-4 py-3">Session</th>
+            <th className="table-header text-left px-4 py-3">Status</th>
+            <th className="table-header text-left px-4 py-3">Remarks</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.length === 0 ? (
+            <tr>
+              <td colSpan={7} className="px-4 py-8 text-center text-gray-500">{emptyText}</td>
+            </tr>
+          ) : (
+            rows.map((query, index) => (
+              <tr key={query.id} className="border-b border-gray-100 hover:bg-gray-50">
+                <td className="px-4 py-3 text-sm text-gray-700">{index + 1}</td>
+                <td className="px-4 py-3">
+                  <div className="text-sm font-medium text-gray-900">{query.student_name}</div>
+                  <div className="text-xs text-gray-500">{query.gender}</div>
+                </td>
+                <td className="px-4 py-3 text-sm text-gray-700">{query.father_name}</td>
+                <td className="px-4 py-3 text-sm text-gray-700">{query.father_mobile}</td>
+                <td className="px-4 py-3 text-sm text-gray-700">{query.class_name}</td>
+                <td className="px-4 py-3 text-sm text-gray-700">{query.session}</td>
+                <td className="px-4 py-3">{statusBadge}</td>
+                <td className="px-4 py-3 text-sm text-gray-600">{query.remarks || '-'}</td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
+    </div>
+  )
+
+  return (
+    <div className="space-y-6">
+      <div className="card">
+        <div className="p-6 border-b border-gray-200">
+          <h2 className="text-lg font-semibold text-gray-700">
+            Approved Students ({approvedQueries.length})
+          </h2>
+          <p className="text-sm text-gray-500 mt-1">Admissions that have been approved and converted to students</p>
+        </div>
+        {loadingApproved ? (
+          <div className="p-8 text-center text-gray-500">Loading...</div>
+        ) : renderTable(
+          approvedQueries,
+          'No approved admissions yet.',
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+            Approved
+          </span>
+        )}
+      </div>
+
+      <div className="card">
+        <div className="p-6 border-b border-gray-200">
+          <h2 className="text-lg font-semibold text-gray-700">
+            Unapproved Students ({unapprovedQueries.length})
+          </h2>
+          <p className="text-sm text-gray-500 mt-1">Admissions that were rejected/unapproved, with remarks</p>
+        </div>
+        {loadingUnapproved ? (
+          <div className="p-8 text-center text-gray-500">Loading...</div>
+        ) : renderTable(
+          unapprovedQueries,
+          'No unapproved admissions.',
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
+            Unapproved
+          </span>
+        )}
+      </div>
     </div>
   )
 }

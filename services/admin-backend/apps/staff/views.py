@@ -117,12 +117,14 @@ class LeaveRequestListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsSchoolStaff]
 
     def get_queryset(self):
-        qs = LeaveRequest.objects.select_related('staff', 'leave_type')
+        qs = LeaveRequest.objects.select_related('staff', 'staff__department', 'leave_type').order_by('-created_at')
         params = self.request.query_params
         if params.get('staff_id'):
             qs = qs.filter(staff_id=params['staff_id'])
         if params.get('status'):
             qs = qs.filter(status=params['status'])
+        if params.get('department_id'):
+            qs = qs.filter(staff__department_id=params['department_id'])
         return qs
 
 
@@ -170,9 +172,11 @@ class LeaveBalanceView(APIView):
     permission_classes = [IsSchoolStaff]
 
     def get(self, request):
-        from django.db.models import Sum, F, ExpressionWrapper, fields
-        staff_id = request.query_params.get('staff_id')
-        session_year = request.query_params.get('session_year', '')
+        from django.db.models import Q
+        params = request.query_params
+        staff_id = params.get('staff_id')
+        search = params.get('search')
+        department_id = params.get('department_id')
 
         qs = LeaveRequest.objects.filter(status='approved')
         if staff_id:
@@ -185,9 +189,16 @@ class LeaveBalanceView(APIView):
             leave_used[key] = leave_used.get(key, 0) + days
 
         leave_types = LeaveType.objects.all()
-        staff_qs = Staff.objects.filter(status='active')
+        staff_qs = Staff.objects.filter(status='active').select_related('department', 'designation')
         if staff_id:
             staff_qs = staff_qs.filter(id=staff_id)
+        if department_id:
+            staff_qs = staff_qs.filter(department_id=department_id)
+        if search:
+            staff_qs = staff_qs.filter(
+                Q(first_name__icontains=search) | Q(last_name__icontains=search) |
+                Q(employee_id__icontains=search)
+            )
 
         result = []
         for staff in staff_qs:
@@ -205,6 +216,8 @@ class LeaveBalanceView(APIView):
                 'staff_id': staff.id,
                 'staff_name': staff.full_name,
                 'employee_id': staff.employee_id,
+                'designation': staff.designation.name if staff.designation else '',
+                'department': staff.department.name if staff.department else '',
                 'balances': balances,
             })
         return Response(result)

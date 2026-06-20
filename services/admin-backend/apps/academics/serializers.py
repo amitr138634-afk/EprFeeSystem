@@ -1,5 +1,8 @@
 from rest_framework import serializers
-from .models import ExamType, StudentSubject, Marks, RemarkMaster, SignatureMaster, GradeScale
+from .models import (
+    ExamType, StudentSubject, Marks, RemarkMaster, SignatureMaster, GradeScale,
+    Grade, Test, CoScholasticSubject,
+)
 
 
 class ExamTypeSerializer(serializers.ModelSerializer):
@@ -56,3 +59,39 @@ class GradeScaleSerializer(serializers.ModelSerializer):
     class Meta:
         model = GradeScale
         fields = '__all__'
+
+
+class GradeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Grade
+        fields = '__all__'
+        read_only_fields = ['id', 'session']
+
+    def validate(self, data):
+        grade_type = data.get('grade_type', getattr(self.instance, 'grade_type', 'marks_based'))
+        min_marks = data.get('min_marks', getattr(self.instance, 'min_marks', None))
+        max_marks = data.get('max_marks', getattr(self.instance, 'max_marks', None))
+
+        if grade_type == 'marks_based':
+            if min_marks is None or max_marks is None:
+                raise serializers.ValidationError('Marks Based grades require both min and max marks.')
+            if min_marks > max_marks:
+                raise serializers.ValidationError('Min marks cannot be greater than max marks.')
+        else:  # direct grade — marks must be null
+            data['min_marks'] = None
+            data['max_marks'] = None
+        return data
+
+
+class TestSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Test
+        fields = '__all__'
+        read_only_fields = ['id', 'session']
+
+
+class CoScholasticSubjectSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CoScholasticSubject
+        fields = '__all__'
+        read_only_fields = ['id', 'session']

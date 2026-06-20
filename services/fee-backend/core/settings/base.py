@@ -79,7 +79,18 @@ DATABASES = {
         'PASSWORD': config('DB_PASSWORD', default='postgres'),
         'HOST': config('DB_HOST', default='localhost'),
         'PORT': config('DB_PORT', default='5432'),
-    }
+    },
+    # Same central DB admin-backend uses, for accounts/schools/auth/sessions/
+    # admin/token_blacklist (see CENTRAL_APPS in utils/db_router.py) — logins
+    # and school records are shared across both services, not duplicated.
+    'central': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': config('DB_CENTRAL_NAME', default='school_erp_central'),
+        'USER': config('DB_USER', default='postgres'),
+        'PASSWORD': config('DB_PASSWORD', default='postgres'),
+        'HOST': config('DB_HOST', default='localhost'),
+        'PORT': config('DB_PORT', default='5432'),
+    },
 }
 
 DATABASE_ROUTERS = ['utils.db_router.TenantDatabaseRouter']

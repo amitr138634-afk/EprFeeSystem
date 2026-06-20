@@ -134,10 +134,9 @@ class GetSchoolCodeView(APIView):
         if not user or not user.school_id:
             return Response({'detail': 'User not found or no school assigned'}, status=status.HTTP_404_NOT_FOUND)
 
-        from django.db import connections
-        with connections['default'].cursor() as cur:
-            cur.execute('SELECT code, name FROM schools WHERE id = %s', [user.school_id])
-            row = cur.fetchone()
-        if not row:
+        from apps.schools.models import School
+        try:
+            school = School.objects.get(pk=user.school_id)
+        except School.DoesNotExist:
             return Response({'detail': 'School not found'}, status=status.HTTP_404_NOT_FOUND)
-        return Response({'school_code': row[0], 'school_name': row[1]})
+        return Response({'school_code': school.code, 'school_name': school.name})

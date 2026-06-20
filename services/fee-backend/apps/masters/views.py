@@ -73,7 +73,7 @@ class SectionMasterToggleStatusView(APIView):
 class ClassSectionMasterListCreateView(SessionScopedMixin, generics.ListCreateAPIView):
     serializer_class = ClassSectionMasterSerializer
     permission_classes = [IsSchoolAdmin]
-    queryset = ClassSectionMaster.objects.select_related('class_master')
+    queryset = ClassSectionMaster.objects.select_related('class_master', 'section_master')
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -124,14 +124,20 @@ class SessionMasterListCreateView(generics.ListCreateAPIView):
         if self.request.user.is_authenticated:
             return SessionMaster.objects.all().order_by('-session_year')
 
-        # Unauthenticated (login-page dropdown): no tenant context yet, so the
-        # default DB is central (no session_master). Route via ?school_code= and
-        # never let a missing DB/table bubble up as a 500.
+        # Unauthenticated (login-page dropdown). fee-backend is deployed
+        # single-tenant — the 'default' DB (set in .env) IS this school's
+        # tenant DB, so without a school_code we can just read from it
+        # directly rather than looking up a central school registry that
+        # doesn't exist in this deployment model. ?school_code= is still
+        # honored for cross-tenant lookups (e.g. driven by admin-frontend).
         import copy
         from django.conf import settings
         school_code = self.request.query_params.get('school_code')
         if not school_code:
-            return SessionMaster.objects.none()
+            try:
+                return list(SessionMaster.objects.using('default').all().order_by('-session_year'))
+            except Exception:
+                return SessionMaster.objects.none()
         db_name = f'school_erp_{school_code}'
         if db_name not in settings.DATABASES:
             cfg = copy.deepcopy(settings.DATABASES['default'])

@@ -34,8 +34,8 @@ class StaffSerializer(serializers.ModelSerializer):
     full_name = serializers.ReadOnlyField()
     department_name = serializers.CharField(source='department.name', read_only=True)
     designation_name = serializers.CharField(source='designation.name', read_only=True)
-    class_name = serializers.CharField(source='class_assigned.name', read_only=True)
-    section_name = serializers.CharField(source='section_assigned.name', read_only=True)
+    class_name = serializers.CharField(source='class_assigned.class_name', read_only=True)
+    section_name = serializers.CharField(source='section_assigned.section_name', read_only=True)
 
     class Meta:
         model = Staff
@@ -47,8 +47,8 @@ class StaffListSerializer(serializers.ModelSerializer):
     full_name = serializers.ReadOnlyField()
     department_name = serializers.CharField(source='department.name', read_only=True)
     designation_name = serializers.CharField(source='designation.name', read_only=True)
-    class_name = serializers.CharField(source='class_assigned.name', read_only=True)
-    section_name = serializers.CharField(source='section_assigned.name', read_only=True)
+    class_name = serializers.CharField(source='class_assigned.class_name', read_only=True)
+    section_name = serializers.CharField(source='section_assigned.section_name', read_only=True)
 
     class Meta:
         model = Staff
@@ -73,9 +73,15 @@ class LeaveTypeSerializer(serializers.ModelSerializer):
 
 class LeaveRequestSerializer(serializers.ModelSerializer):
     staff_name = serializers.CharField(source='staff.full_name', read_only=True)
+    employee_id = serializers.CharField(source='staff.employee_id', read_only=True)
+    department_name = serializers.CharField(source='staff.department.name', read_only=True)
     leave_type_name = serializers.CharField(source='leave_type.name', read_only=True)
+    days = serializers.SerializerMethodField()
 
     class Meta:
         model = LeaveRequest
         fields = '__all__'
         read_only_fields = ['id', 'created_at']
+
+    def get_days(self, obj):
+        return (obj.to_date - obj.from_date).days + 1

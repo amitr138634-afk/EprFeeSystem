@@ -8,11 +8,8 @@ def get_school_name(school_id):
     if not school_id:
         return ''
     try:
-        from django.db import connections
-        with connections['default'].cursor() as cur:
-            cur.execute('SELECT name FROM schools WHERE id = %s', [school_id])
-            row = cur.fetchone()
-            return row[0] if row else ''
+        from apps.schools.models import School
+        return School.objects.get(id=school_id).name
     except Exception:
         return ''
 

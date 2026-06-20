@@ -4,11 +4,12 @@ from apps.staff.models import Staff
 
 
 class Subject(models.Model):
-    """Subject Master - Global subjects list"""
+    """Subject Master - session-scoped subjects list"""
     STATUS_CHOICES = [('active', 'Active'), ('inactive', 'Inactive')]
-    
+
     name = models.CharField(max_length=100)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='active')
+    session = models.CharField(max_length=10, blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

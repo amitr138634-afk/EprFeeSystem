@@ -1,259 +1,276 @@
-import { useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Trash2, Loader2, AlertTriangle, BookOpen } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { useQuery, useMutation } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
+import { Plus, Save, BookOpen, ArrowRight, ArrowLeft, Award } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { academicsApi, studentApi, timetableApi, staffApi } from '../../services/api'
+import { academicsApi, studentsApi } from '../../services/api'
 
-function DeleteConfirm({ label, onConfirm, onCancel, isPending }) {
-  return (
-    <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-1.5">
-      <AlertTriangle size={14} className="text-red-500 shrink-0" />
-      <span className="text-xs text-red-700">Remove <strong>{label}</strong>?</span>
-      <button
-        onClick={onConfirm}
-        disabled={isPending}
-        className="text-xs font-semibold text-white bg-red-500 hover:bg-red-600 px-2 py-0.5 rounded disabled:opacity-50"
-      >
-        {isPending ? <Loader2 size={11} className="animate-spin" /> : 'Yes'}
-      </button>
-      <button onClick={onCancel} className="text-xs text-gray-500 hover:text-gray-700">Cancel</button>
-    </div>
-  )
-}
+const listOf = (r) => (Array.isArray(r.data) ? r.data : r.data.results || r.data.data || [])
 
-function AllocationRow({ alloc, subjects, staff }) {
-  const qc = useQueryClient()
-  const [confirming, setConfirming] = useState(false)
-
-  const subject = subjects.find(s => s.id === (alloc.subject_id ?? alloc.subject))
-  const teacher = staff.find(t => t.id === (alloc.teacher_id ?? alloc.teacher))
-
-  const deleteMut = useMutation({
-    mutationFn: () => academicsApi.deleteSubjectAllocation(alloc.id),
-    onSuccess: () => { qc.invalidateQueries(['subject-allocations']); toast.success('Subject removed') },
-    onError: () => toast.error('Failed to remove subject'),
-  })
-
-  return (
-    <tr className="hover:bg-gray-50 group">
-      <td className="px-4 py-3 text-sm font-medium text-gray-800">
-        {subject?.name ?? alloc.subject_name ?? '—'}
-      </td>
-      <td className="px-4 py-3 text-sm text-gray-600">
-        {teacher
-          ? `${teacher.first_name ?? ''} ${teacher.last_name ?? ''}`.trim() || teacher.name
-          : alloc.teacher_name ?? '—'}
-      </td>
-      <td className="px-4 py-3">
-        {confirming ? (
-          <DeleteConfirm
-            label={subject?.name ?? 'this subject'}
-            onConfirm={() => deleteMut.mutate()}
-            onCancel={() => setConfirming(false)}
-            isPending={deleteMut.isPending}
-          />
-        ) : (
-          <button
-            onClick={() => setConfirming(true)}
-            className="p-1.5 hover:bg-red-50 rounded text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
-            title="Remove"
-          >
-            <Trash2 size={14} />
-          </button>
-        )}
-      </td>
-    </tr>
-  )
-}
-
-function AddSubjectForm({ classId, sectionId, existingSubjectIds, subjects, staff }) {
-  const qc = useQueryClient()
-  const [form, setForm] = useState({ subject_id: '', teacher_id: '' })
-
-  const availableSubjects = subjects.filter(s => !existingSubjectIds.includes(s.id))
-
-  const createMut = useMutation({
-    mutationFn: () => academicsApi.createSubjectAllocation({
-      class_id: Number(classId),
-      section_id: Number(sectionId),
-      subject_id: Number(form.subject_id),
-      teacher_id: Number(form.teacher_id),
-    }),
-    onSuccess: () => { qc.invalidateQueries(['subject-allocations']); setForm({ subject_id: '', teacher_id: '' }); toast.success('Subject assigned') },
-    onError: (err) => toast.error(err.response?.data?.detail || err.response?.data?.non_field_errors?.[0] || 'Failed to assign subject'),
-  })
-
-  const valid = form.subject_id && form.teacher_id
-
-  return (
-    <div className="border-t border-gray-100 px-5 py-4 bg-gray-50/50">
-      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">Assign New Subject</p>
-      <div className="flex items-end gap-3 flex-wrap">
-        <div className="min-w-[200px]">
-          <label className="form-label">Subject</label>
-          <select
-            className="form-select"
-            value={form.subject_id}
-            onChange={e => setForm(p => ({ ...p, subject_id: e.target.value }))}
-          >
-            <option value="">Select Subject</option>
-            {availableSubjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
-        </div>
-        <div className="min-w-[200px]">
-          <label className="form-label">Teacher</label>
-          <select
-            className="form-select"
-            value={form.teacher_id}
-            onChange={e => setForm(p => ({ ...p, teacher_id: e.target.value }))}
-          >
-            <option value="">Select Teacher</option>
-            {staff.map(t => (
-              <option key={t.id} value={t.id}>
-                {`${t.first_name ?? ''} ${t.last_name ?? ''}`.trim() || t.name || `Staff #${t.id}`}
-              </option>
-            ))}
-          </select>
-        </div>
-        <button
-          onClick={() => createMut.mutate()}
-          disabled={!valid || createMut.isPending}
-          className="btn-primary flex items-center gap-2 disabled:opacity-50"
-        >
-          {createMut.isPending ? <><Loader2 size={14} className="animate-spin" /> Assigning…</> : <><Plus size={14} /> Assign</>}
-        </button>
-      </div>
-      {availableSubjects.length === 0 && (
-        <p className="text-xs text-gray-400 mt-2">All available subjects have been assigned to this section.</p>
-      )}
-    </div>
-  )
-}
+const SCHOLASTIC_MODES = [
+  { value: 'marks',       label: 'Marks' },
+  { value: 'marks_grade', label: 'Marks Based Grade' },
+]
 
 export default function AssignSubjects() {
-  const [filters, setFilters] = useState({ class_id: '', section_id: '' })
+  const navigate = useNavigate()
+  const [classId, setClassId] = useState('')
+  const [sectionId, setSectionId] = useState('')
+  // { [subject_id]: { mode, is_co, cells: { [test_id]: maxMarksString } } }
+  const [grid, setGrid] = useState({})
 
   const { data: classes = [] } = useQuery({
-    queryKey: ['classes'],
-    queryFn: () => studentApi.classes().then(r => r.data.results ?? r.data),
+    queryKey: ['classMasters'],
+    queryFn: () => studentsApi.classMasters().then(listOf),
   })
-
   const { data: sections = [] } = useQuery({
-    queryKey: ['sections', filters.class_id],
-    queryFn: () => studentApi.sections({ class_id: filters.class_id }).then(r => r.data.results ?? r.data),
-    enabled: !!filters.class_id,
+    queryKey: ['sectionMasters', classId],
+    queryFn: () => studentsApi.sectionMasters({ class_id: classId }).then(listOf),
+    enabled: !!classId,
   })
 
-  const { data: subjects = [] } = useQuery({
-    queryKey: ['subjects'],
-    queryFn: () => timetableApi.subjects().then(r => r.data.results ?? r.data),
+  const selected = classId && sectionId
+
+  const { data, isLoading, isFetching } = useQuery({
+    queryKey: ['assign-subject-test', classId, sectionId],
+    queryFn: () => academicsApi.assignSubjectTest({ class_id: classId, section_id: sectionId }).then(r => r.data),
+    enabled: !!selected,
   })
 
-  const { data: staff = [] } = useQuery({
-    queryKey: ['staff-list'],
-    queryFn: () => staffApi.list().then(r => r.data.results ?? r.data),
+  const subjects = data?.subjects || []
+  const tests = data?.tests || []
+  const coMaster = data?.co_scholastic_master || []
+
+  useEffect(() => {
+    if (!data) return
+    const bySubject = {}
+    ;(data.assignments || []).forEach(a => { bySubject[a.subject_id] = a })
+    const next = {}
+    subjects.forEach(s => {
+      const a = bySubject[s.id]
+      const cells = {}
+      tests.forEach(t => {
+        const v = a?.cells?.[t.id]
+        cells[t.id] = v === null || v === undefined ? '' : String(v)
+      })
+      next[s.id] = {
+        mode: a?.evaluation_mode && a.evaluation_mode !== 'direct' ? a.evaluation_mode : 'marks',
+        is_co: !!a?.is_co_scholastic,
+        cells,
+      }
+    })
+    setGrid(next)
+  }, [data])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  const setMode = (id, mode) =>
+    setGrid(prev => ({ ...prev, [id]: { ...prev[id], mode } }))
+
+  const setCell = (id, testId, value) =>
+    setGrid(prev => ({ ...prev, [id]: { ...prev[id], cells: { ...prev[id].cells, [testId]: value } } }))
+
+  const moveToCo = (id) =>
+    setGrid(prev => ({ ...prev, [id]: { ...prev[id], is_co: true, cells: Object.fromEntries(tests.map(t => [t.id, ''])) } }))
+
+  const moveToScholastic = (id) =>
+    setGrid(prev => ({ ...prev, [id]: { ...prev[id], is_co: false, mode: 'marks' } }))
+
+  const saveMutation = useMutation({
+    mutationFn: () => academicsApi.saveAssignSubjectTest({
+      class_id: classId,
+      section_id: sectionId,
+      rows: subjects.map(s => {
+        const row = grid[s.id] || { mode: 'marks', is_co: false, cells: {} }
+        return {
+          subject_id: s.id,
+          is_co_scholastic: row.is_co,
+          evaluation_mode: row.is_co ? 'direct' : row.mode,
+          cells: row.is_co ? [] : tests.map(t => ({ test_id: t.id, max_marks: row.cells[t.id] === '' ? null : row.cells[t.id] })),
+        }
+      }),
+    }),
+    onSuccess: (r) => toast.success(r.data?.detail || 'Saved!'),
+    onError: () => toast.error('Failed to save'),
   })
 
-  const allSelected = filters.class_id && filters.section_id
-
-  const { data: allocations = [], isLoading } = useQuery({
-    queryKey: ['subject-allocations', filters.class_id, filters.section_id],
-    queryFn: () => academicsApi.subjectAllocations({ class_id: filters.class_id, section_id: filters.section_id }).then(r => r.data.results ?? r.data),
-    enabled: !!allSelected,
-  })
-
-  const existingSubjectIds = allocations.map(a => a.subject_id ?? a.subject)
+  const loading = isLoading || isFetching
+  const scholastic = subjects.filter(s => !grid[s.id]?.is_co)
+  const movedCo = subjects.filter(s => grid[s.id]?.is_co)
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="page-title">Assign Subjects</h1>
-        <p className="page-sub">Assign subjects and their teachers to a class section.</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="page-title">Assign Subject &amp; Test</h1>
+          <p className="page-sub">Configure Scholastic &amp; Co-Scholastic subjects, evaluation mode and max marks per class-section.</p>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={() => navigate('/masters/subjects')} className="btn-secondary flex items-center gap-2"><Plus size={15} /> Add Subject</button>
+          <button onClick={() => navigate('/cce/test-master')} className="btn-secondary flex items-center gap-2"><Plus size={15} /> Add Test</button>
+        </div>
       </div>
 
-      {/* Filters */}
+      {/* Class / Section filters */}
       <div className="card p-5">
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="form-label">Class</label>
-            <select
-              className="form-select"
-              value={filters.class_id}
-              onChange={e => setFilters(p => ({ ...p, class_id: e.target.value, section_id: '' }))}
-            >
+            <select className="form-input" value={classId} onChange={e => { setClassId(e.target.value); setSectionId('') }}>
               <option value="">Select Class</option>
-              {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              {classes.map(c => <option key={c.id} value={c.id}>{c.class_name}</option>)}
             </select>
           </div>
           <div>
             <label className="form-label">Section</label>
-            <select
-              className="form-select"
-              value={filters.section_id}
-              onChange={e => setFilters(p => ({ ...p, section_id: e.target.value }))}
-              disabled={!filters.class_id}
-            >
+            <select className="form-input" value={sectionId} onChange={e => setSectionId(e.target.value)} disabled={!classId}>
               <option value="">Select Section</option>
-              {sections.map(s => <option key={s.id} value={s.id}>Section {s.name}</option>)}
+              {sections.map(s => <option key={s.id} value={s.id}>{s.section_name}</option>)}
             </select>
           </div>
         </div>
       </div>
 
-      {/* Allocations */}
-      {!allSelected ? (
+      {!selected ? (
         <div className="card p-12 text-center">
           <BookOpen size={40} className="text-gray-300 mx-auto mb-3" />
-          <p className="text-sm text-gray-400">Select a class and section to manage subject assignments.</p>
+          <p className="text-sm text-gray-400">Select a class and section to configure subjects &amp; tests.</p>
         </div>
-      ) : isLoading ? (
-        <div className="flex items-center justify-center py-16">
-          <div className="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full" />
-        </div>
+      ) : loading ? (
+        <div className="card p-12 text-center text-gray-400">Loading grid...</div>
       ) : (
-        <div className="card overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-            <p className="text-sm font-semibold text-gray-700">
-              {allocations.length} subject{allocations.length !== 1 ? 's' : ''} assigned
-            </p>
+        <>
+          {/* ── Scholastic ─────────────────────────────────────────── */}
+          <div className="card p-0 overflow-hidden">
+            <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
+              <BookOpen size={16} className="text-blue-600" />
+              <h2 className="font-semibold text-gray-800">Scholastic Subjects</h2>
+              <span className="text-xs text-gray-400">from Timetable</span>
+            </div>
+
+            {subjects.length === 0 ? (
+              <div className="p-10 text-center">
+                <p className="text-sm text-gray-500">No subjects found in the timetable for this class-section.</p>
+                <p className="text-xs text-gray-400 mt-1">Subjects appear here only after they are mapped in the <strong>Timetable</strong>.</p>
+              </div>
+            ) : (
+              <>
+                {tests.length === 0 && (
+                  <div className="px-4 py-2 bg-amber-50 text-amber-700 text-xs border-b border-amber-100">
+                    No tests defined yet. Click <strong>Add Test</strong> to create tests — they appear as columns here.
+                  </div>
+                )}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-gray-50 border-b border-gray-200 text-gray-600">
+                        <th className="px-3 py-2 text-left sticky left-0 bg-gray-50 z-10 min-w-[150px]">Subject</th>
+                        <th className="px-3 py-2 text-left min-w-[220px]">Mode</th>
+                        <th className="px-3 py-2 text-center min-w-[150px]">Move to Co-Scholastic</th>
+                        {tests.map(t => <th key={t.id} className="px-3 py-2 text-center min-w-[90px]">{t.name}</th>)}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {scholastic.length === 0 && (
+                        <tr><td colSpan={3 + tests.length} className="px-3 py-6 text-center text-gray-400 text-xs">All timetable subjects moved to Co-Scholastic.</td></tr>
+                      )}
+                      {scholastic.map(s => {
+                        const row = grid[s.id] || { mode: 'marks', cells: {} }
+                        return (
+                          <tr key={s.id} className="border-b border-gray-100 hover:bg-gray-50">
+                            <td className="px-3 py-2.5 font-medium text-gray-800 sticky left-0 bg-white z-10">{s.name}</td>
+                            <td className="px-3 py-2.5">
+                              <select
+                                value={row.mode}
+                                onChange={e => setMode(s.id, e.target.value)}
+                                className="form-input py-1 text-xs w-44"
+                              >
+                                {SCHOLASTIC_MODES.map(m => (
+                                  <option key={m.value} value={m.value}>{m.label}</option>
+                                ))}
+                              </select>
+                            </td>
+                            <td className="px-3 py-2.5 text-center">
+                              <button onClick={() => moveToCo(s.id)} className="inline-flex items-center gap-1 text-xs text-orange-600 hover:text-orange-700 font-medium">
+                                Move <ArrowRight size={12} />
+                              </button>
+                            </td>
+                            {tests.map(t => (
+                              <td key={t.id} className="px-3 py-2.5 text-center">
+                                <input
+                                  type="number" min={0} step="0.01"
+                                  value={row.cells[t.id] ?? ''}
+                                  onChange={e => setCell(s.id, t.id, e.target.value)}
+                                  placeholder="Max"
+                                  className="form-input py-1 text-xs w-20 text-center"
+                                />
+                              </td>
+                            ))}
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
           </div>
 
-          {allocations.length === 0 ? (
-            <div className="px-5 py-8 text-center text-sm text-gray-400">
-              No subjects assigned to this section yet. Use the form below to add subjects.
+          {/* ── Co-Scholastic ──────────────────────────────────────── */}
+          <div className="card p-0 overflow-hidden">
+            <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
+              <Award size={16} className="text-purple-600" />
+              <h2 className="font-semibold text-gray-800">Co-Scholastic Subjects</h2>
+              <span className="text-xs text-gray-400">Direct Grade only · no marks</span>
             </div>
-          ) : (
-            <div className="table-container">
-              <table className="data-table">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
                 <thead>
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Subject</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Teacher</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Actions</th>
+                  <tr className="bg-gray-50 border-b border-gray-200 text-gray-600">
+                    <th className="px-3 py-2 text-left">Subject / Activity</th>
+                    <th className="px-3 py-2 text-left">Source</th>
+                    <th className="px-3 py-2 text-left">Mode</th>
+                    <th className="px-3 py-2 text-center">Action</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {allocations.map(alloc => (
-                    <AllocationRow
-                      key={alloc.id}
-                      alloc={alloc}
-                      subjects={subjects}
-                      staff={staff}
-                    />
+                <tbody>
+                  {movedCo.length === 0 && coMaster.length === 0 && (
+                    <tr><td colSpan={4} className="px-3 py-6 text-center text-gray-400 text-xs">
+                      No co-scholastic subjects. Move a timetable subject here, or assign a <strong>Co-Scholastic Subject Master</strong> activity to this class-section.
+                    </td></tr>
+                  )}
+                  {movedCo.map(s => (
+                    <tr key={`mv-${s.id}`} className="border-b border-gray-100 hover:bg-gray-50">
+                      <td className="px-3 py-2.5 font-medium text-gray-800">{s.name}</td>
+                      <td className="px-3 py-2.5"><span className="badge badge-blue text-xs">Timetable (moved)</span></td>
+                      <td className="px-3 py-2.5 text-gray-600">Direct Grade</td>
+                      <td className="px-3 py-2.5 text-center">
+                        <button onClick={() => moveToScholastic(s.id)} className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium">
+                          <ArrowLeft size={12} /> Move to Scholastic
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {coMaster.map(s => (
+                    <tr key={`ms-${s.id}`} className="border-b border-gray-100 hover:bg-gray-50">
+                      <td className="px-3 py-2.5 font-medium text-gray-800">{s.name}</td>
+                      <td className="px-3 py-2.5"><span className="badge badge-gray text-xs">Master</span></td>
+                      <td className="px-3 py-2.5 text-gray-600">Direct Grade</td>
+                      <td className="px-3 py-2.5 text-center text-xs text-gray-400">managed in master</td>
+                    </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          )}
+          </div>
 
-          <AddSubjectForm
-            classId={filters.class_id}
-            sectionId={filters.section_id}
-            existingSubjectIds={existingSubjectIds}
-            subjects={subjects}
-            staff={staff}
-          />
-        </div>
+          <div className="flex items-center gap-3">
+            <button onClick={() => saveMutation.mutate()} disabled={saveMutation.isLoading || subjects.length === 0} className="btn-primary flex items-center gap-2">
+              <Save size={15} /> {saveMutation.isLoading ? 'Saving...' : 'Save'}
+            </button>
+            <span className="text-xs text-gray-400">
+              Co-scholastic grades come from Grade Master (Direct Grade) during Marks Feeding. Master activities only appear here once assigned to this class-section in Co-Scholastic Subject Master.
+            </span>
+          </div>
+        </>
       )}
     </div>
   )

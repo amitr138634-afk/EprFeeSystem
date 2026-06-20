@@ -23,11 +23,21 @@ class SessionMasterListCreateView(generics.ListCreateAPIView):
         if self.request.user.is_authenticated:
             return SessionMaster.objects.all().order_by('-session_year')
         
-        # For unauthenticated (login page), get school_code from query param
+        # For unauthenticated (login page), get school_code from query param.
+        # Before the user identifies their school (e.g. hasn't typed/blurred
+        # the email field yet), default to the first registered school so the
+        # dropdown isn't empty on first paint — the real login always re-resolves
+        # the session against the authenticated user's own school regardless of
+        # what was shown here, so this default is just a convenience, not a
+        # security boundary.
         school_code = self.request.query_params.get('school_code')
         if not school_code:
-            return SessionMaster.objects.none()  # Return empty if no school_code provided
-        
+            from apps.schools.models import School
+            school = School.objects.order_by('id').first()
+            if not school:
+                return SessionMaster.objects.none()
+            school_code = school.code
+
         # Dynamically register the tenant DB if not already known. Copy the full
         # default config (OPTIONS, ATOMIC_REQUESTS, …) and just override NAME — a
         # partial dict crashes Django's connection setup (e.g. KeyError 'OPTIONS').

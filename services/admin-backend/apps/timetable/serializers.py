@@ -6,8 +6,8 @@ from apps.students.models import ClassSectionMaster
 class SubjectSerializer(serializers.ModelSerializer):
     class Meta:
         model = Subject
-        fields = ['id', 'name', 'status', 'created_at', 'updated_at']
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        fields = ['id', 'name', 'status', 'session', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'session', 'created_at', 'updated_at']
 
 
 class PeriodSerializer(serializers.ModelSerializer):

@@ -58,10 +58,9 @@ export default function SectionMaster() {
   const createMutation = useMutation({
     mutationFn: async (data) => {
       const promises = data.sections.map(sectionId => {
-        const section = availableSections.find(s => s.id === parseInt(sectionId))
         return masterApi.createSection({
           class_master: data.class_master,
-          section_name: section.section,
+          section_master: sectionId,
           session: data.session,
           status: data.status
         })

@@ -33,6 +33,26 @@ export default function Login() {
     }
   }, [])
 
+  // Fetch sessions immediately on mount — no need to type/blur the email
+  // first. The backend defaults to the first registered school when no
+  // school_code is given. handleUsernameBlur refines this once the user's
+  // actual school is known (relevant once there's more than one school);
+  // the real login always re-resolves the session against the authenticated
+  // user's own school regardless, so this default is just a convenience.
+  useEffect(() => {
+    const fetchSessions = async () => {
+      try {
+        const res = await api.get('/masters/sessions/', { skipAuth: true })
+        const sessionData = Array.isArray(res.data) ? res.data : (res.data.results || [])
+        setSessions(sessionData)
+        if (sessionData.length > 0) setSelectedSession(sessionData[0].id)
+      } catch (err) {
+        console.error('Failed to load sessions:', err)
+      }
+    }
+    fetchSessions()
+  }, [])
+
   // Resolve the user's school from their username/email, then load that school's
   // sessions. The DB has no tenant context before login, so we route by school_code.
   const handleUsernameBlur = async (e) => {
@@ -40,7 +60,7 @@ export default function Login() {
     if (!identifier) return
     try {
       const { data } = await authApi.getSchoolCode({ email: identifier })
-      const res = await api.get(`/masters/sessions/?school_code=${data.school_code}`)
+      const res = await api.get(`/masters/sessions/?school_code=${data.school_code}`, { skipAuth: true })
       const sessionData = Array.isArray(res.data) ? res.data : (res.data.results || [])
       setSessions(sessionData)
       if (sessionData.length > 0) setSelectedSession(sessionData[0].id)

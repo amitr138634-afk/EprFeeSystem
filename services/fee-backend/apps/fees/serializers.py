@@ -3,7 +3,7 @@ from .models import (
     FeeHead, FeeAmount, FeeStructure, DiscountHead, StudentFeeDiscount,
     FeeReceipt, FeeReceiptItem, AdditionalFee, DepositFee,
     BookSet, Book, BookSale, UniformItem, UniformSale, UniformSaleItem,
-    AdmissionQuery, RegistrationFeePaid, StudentFeeDetail
+    AdmissionQuery, FeePaid, StudentFeeDetail, StudentFeeHeadMonthDiscount
 )
 
 
@@ -201,14 +201,18 @@ class AdmissionQueryListSerializer(serializers.ModelSerializer):
     
     def get_registration_paid(self, obj):
         """Check if registration fee is paid"""
-        try:
-            return obj.registration_payment is not None
-        except:
-            return False
+        return FeePaid.objects.filter(stu_id=obj.id, type='EXTRA').exists()
 
 
-class RegistrationFeePaidSerializer(serializers.ModelSerializer):
+class FeePaidSerializer(serializers.ModelSerializer):
     class Meta:
-        model = RegistrationFeePaid
+        model = FeePaid
         fields = '__all__'
-        read_only_fields = ['id', 'receipt_no', 'created_at']
+        read_only_fields = ['id', 'rec_no', 'created_at']
+
+
+class StudentFeeHeadMonthDiscountSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = StudentFeeHeadMonthDiscount
+        fields = '__all__'
+        read_only_fields = ['id', 'created_at', 'updated_at']

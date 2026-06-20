@@ -39,9 +39,12 @@ class ClassMaster(models.Model):
 
 
 class ClassSectionMaster(models.Model):
-    """Uses class_section_master table from fee-backend (no migrations generated here)"""
+    """Uses class_section_master table from fee-backend (no migrations generated here).
+    Pure mapping: which generic SectionMaster sections exist for which class.
+    Names are never stored here directly — resolve via class_master.class_name
+    and section_master.section."""
     class_master = models.ForeignKey(ClassMaster, on_delete=models.CASCADE, related_name='sections')
-    section_name = models.CharField(max_length=10, verbose_name='Section')
+    section_master = models.ForeignKey(SectionMaster, on_delete=models.CASCADE, related_name='class_sections')
     status = models.BooleanField(default=True, help_text='1=Active, 0=Inactive')
     session = models.CharField(max_length=20)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -50,10 +53,17 @@ class ClassSectionMaster(models.Model):
     class Meta:
         db_table = 'class_section_master'
         managed = False  # Table created by fee-backend
-        ordering = ['class_master', 'section_name']
+        ordering = ['class_master', 'section_master']
 
     def __str__(self):
-        return f'{self.class_master.class_name} - {self.section_name}'
+        return f'{self.class_master.class_name} - {self.section_master.section}'
+
+    @property
+    def section_name(self):
+        """Back-compat accessor — existing code/serializers read
+        `.section_name` as a plain attribute; this resolves it via the FK
+        instead of a duplicated text column."""
+        return self.section_master.section
 
 
 class Student(models.Model):
@@ -76,6 +86,8 @@ class Student(models.Model):
     ]
     
     admission_no = models.CharField(max_length=20, unique=True)
+    roll_no = models.CharField(max_length=20, blank=True)
+    photo = models.ImageField(upload_to='student_photos/', null=True, blank=True)
     student_name = models.CharField(max_length=200)
     father_name = models.CharField(max_length=200)
     mother_name = models.CharField(max_length=200)

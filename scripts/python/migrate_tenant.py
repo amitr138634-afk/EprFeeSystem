@@ -35,14 +35,14 @@ def migrate_tenant(db_name):
         # Test connection
         conn = connections[db_name]
         conn.ensure_connection()
-        print(f"✓ Connected to {db_name}")
-        
+        print(f"Connected to {db_name}")
+
         # Run migrations
         call_command('migrate', '--database', db_name, verbosity=2)
-        print(f"✓ Migrations completed for {db_name}")
-        
+        print(f"Migrations completed for {db_name}")
+
     except Exception as e:
-        print(f"✗ Error migrating {db_name}: {e}")
+        print(f"Error migrating {db_name}: {e}")
         sys.exit(1)
 
 if __name__ == '__main__':

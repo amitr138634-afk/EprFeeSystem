@@ -65,6 +65,8 @@ const NAV = [
           { label: 'Receipt History',    to: '/fees/receipts' },
           { label: 'Previous Late Fine', to: '/fees/late-fine-history' },
           { label: 'Student Fee Ledger', to: '/fees/ledger' },
+          { label: 'Fee Summary',        to: '/feemgmt/fee-summary' },
+          { label: 'Fee Transaction',    to: '/feemgmt/fee-transaction' },
         ],
       },
       {
@@ -175,6 +177,14 @@ const NAV = [
           { label: 'Sec Master',          to: '/masters/sec-master' },
           { label: 'Class Section Master', to: '/masters/sections' },
           { label: 'Session Master',      to: '/masters/sessions' },
+        ],
+      },
+      {
+        title: 'Transport Masters',
+        items: [
+          { label: 'Route Master', to: '/masters/routes' },
+          { label: 'Bus Master',   to: '/masters/buses' },
+          { label: 'Stop Master',  to: '/masters/stops' },
         ],
       },
     ],

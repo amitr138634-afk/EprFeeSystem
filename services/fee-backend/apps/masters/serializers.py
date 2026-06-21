@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import ClassMaster, ClassSectionMaster, SectionMaster, SessionMaster
+from .models import ClassMaster, ClassSectionMaster, SectionMaster, SessionMaster, Student
 
 
 class ClassMasterSerializer(serializers.ModelSerializer):
@@ -18,6 +18,7 @@ class SectionMasterSerializer(serializers.ModelSerializer):
 
 class ClassSectionMasterSerializer(serializers.ModelSerializer):
     class_name = serializers.CharField(source='class_master.class_name', read_only=True)
+    section_name = serializers.CharField(source='section_master.section', read_only=True)
 
     class Meta:
         model = ClassSectionMaster
@@ -35,7 +36,7 @@ class SessionMasterSerializer(serializers.ModelSerializer):
         # Validate format: YYYY-YYYY
         if len(value) != 9 or value[4] != '-':
             raise serializers.ValidationError('Session year format should be YYYY-YYYY (e.g., 2024-2025)')
-        
+
         try:
             start_year = int(value[:4])
             end_year = int(value[5:])
@@ -43,6 +44,18 @@ class SessionMasterSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError('End year should be start year + 1')
         except ValueError:
             raise serializers.ValidationError('Invalid year format')
-        
+
         return value
+
+
+class StudentDetailSerializer(serializers.ModelSerializer):
+    """Full editable Student record — backs the 'Complete Detail' form.
+    `class_name` changes are detected by the view (StudentDetailUpdateView),
+    which requires an `effective_month` and splits the fee structure
+    accordingly; this serializer just persists the field values."""
+
+    class Meta:
+        model = Student
+        fields = '__all__'
+        read_only_fields = ['id', 'created_at', 'updated_at']
 

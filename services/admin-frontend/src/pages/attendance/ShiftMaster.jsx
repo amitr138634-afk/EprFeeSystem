@@ -8,7 +8,8 @@ export default function ShiftMaster() {
   const qc = useQueryClient()
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState(null)
-  const [form, setForm] = useState({ name: '', start_time: '', end_time: '', grace_minutes: '' })
+  const emptyForm = { name: '', start_time: '', end_time: '', grace_minutes: '', is_default: false }
+  const [form, setForm] = useState(emptyForm)
 
   const { data: shifts = [], isLoading } = useQuery({
     queryKey: ['shifts'],
@@ -21,7 +22,7 @@ export default function ShiftMaster() {
       : staffApi.createShift(data),
     onSuccess: () => {
       qc.invalidateQueries(['shifts'])
-      setShowForm(false); setEditing(null); setForm({ name: '', start_time: '', end_time: '', grace_minutes: '' })
+      setShowForm(false); setEditing(null); setForm(emptyForm)
       toast.success(editing ? 'Updated!' : 'Shift created!')
     },
     onError: () => toast.error('Failed to save'),
@@ -35,10 +36,10 @@ export default function ShiftMaster() {
 
   const openEdit = (d) => {
     setEditing(d)
-    setForm({ name: d.name, start_time: d.start_time || '', end_time: d.end_time || '', grace_minutes: d.grace_minutes ?? '' })
+    setForm({ name: d.name, start_time: d.start_time || '', end_time: d.end_time || '', grace_minutes: d.grace_minutes ?? '', is_default: !!d.is_default })
     setShowForm(true)
   }
-  const openNew = () => { setEditing(null); setForm({ name: '', start_time: '', end_time: '', grace_minutes: '' }); setShowForm(true) }
+  const openNew = () => { setEditing(null); setForm(emptyForm); setShowForm(true) }
 
   return (
     <div className="space-y-4">
@@ -70,6 +71,12 @@ export default function ShiftMaster() {
               <label className="form-label">Grace Minutes</label>
               <input type="number" className="form-input" value={form.grace_minutes} onChange={e => setForm(p=>({...p,grace_minutes:e.target.value}))} placeholder="e.g. 10" min={0} />
             </div>
+            <div className="flex items-end pb-2">
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                <input type="checkbox" checked={form.is_default} onChange={e => setForm(p=>({...p,is_default:e.target.checked}))} />
+                Default shift
+              </label>
+            </div>
           </div>
           <div className="flex gap-2 mt-4">
             <button onClick={() => saveMutation.mutate(form)} disabled={saveMutation.isLoading} className="btn-primary btn-sm">Save</button>
@@ -81,11 +88,11 @@ export default function ShiftMaster() {
       <div className="table-container">
         <table className="data-table">
           <thead>
-            <tr><th>#</th><th>Name</th><th>Start Time</th><th>End Time</th><th>Grace Minutes</th><th>Actions</th></tr>
+            <tr><th>#</th><th>Name</th><th>Start Time</th><th>End Time</th><th>Grace Minutes</th><th>Default</th><th>Actions</th></tr>
           </thead>
           <tbody>
-            {isLoading && <tr><td colSpan={6} className="text-center py-8 text-gray-400">Loading...</td></tr>}
-            {!isLoading && shifts.length === 0 && <tr><td colSpan={6} className="text-center py-8 text-gray-400">No shifts found</td></tr>}
+            {isLoading && <tr><td colSpan={7} className="text-center py-8 text-gray-400">Loading...</td></tr>}
+            {!isLoading && shifts.length === 0 && <tr><td colSpan={7} className="text-center py-8 text-gray-400">No shifts found</td></tr>}
             {shifts.map((d, i) => (
               <tr key={d.id}>
                 <td className="text-gray-500">{i+1}</td>
@@ -93,6 +100,7 @@ export default function ShiftMaster() {
                 <td>{d.start_time}</td>
                 <td>{d.end_time}</td>
                 <td>{d.grace_minutes}</td>
+                <td>{d.is_default ? <span className="badge badge-green">Default</span> : <span className="text-gray-300">—</span>}</td>
                 <td>
                   <div className="flex gap-1">
                     <button onClick={() => openEdit(d)} className="p-1.5 hover:bg-blue-50 rounded text-blue-600"><Edit size={14}/></button>

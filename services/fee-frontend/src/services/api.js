@@ -10,7 +10,10 @@ const api = axios.create({
 
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('access_token')
-  if (token) config.headers.Authorization = `Bearer ${token}`
+  // Public pre-login calls (e.g. login page session dropdown) opt out via
+  // { skipAuth: true } — a stale/expired token here would 401 the request,
+  // since JWT auth rejects bad tokens before AllowAny is even checked.
+  if (token && !config.skipAuth) config.headers.Authorization = `Bearer ${token}`
   return config
 })
 
@@ -52,9 +55,12 @@ api.interceptors.response.use(
 export default api
 
 export const authApi = {
-  login:   (data) => api.post('/auth/login/', data, { suppressErrorToast: true }),
-  logout:  (refresh) => api.post('/auth/logout/', { refresh }),
-  profile: () => api.get('/auth/profile/'),
+  login:         (data) => api.post('/auth/login/', data, { suppressErrorToast: true, skipAuth: true }),
+  logout:        (refresh) => api.post('/auth/logout/', { refresh }),
+  profile:       () => api.get('/auth/profile/'),
+  listSessions:  () => api.get('/auth/sessions/'),
+  changeSession: (data) => api.post('/auth/change-session/', data),
+  getSchoolCode: (data) => api.post('/auth/get-school-code/', data, { skipAuth: true }),
 }
 
 export const feeApi = {
@@ -132,7 +138,17 @@ export const feeApi = {
   searchStudent:      (admissionNo) => api.get(`/fees/students/search/?admission_no=${admissionNo}`),
   getStudentsByClass: (className) => api.get(`/fees/students/by-class/?class_name=${className}`),
   getStudentProfile:  (studentId) => api.get(`/fees/students/${studentId}/profile/`),
+  payStudentFee:      (studentId, data) => api.post(`/fees/students/${studentId}/pay/`, data),
   getClasses:         () => api.get('/masters/classes/'),
+  /* Complete Detail (full student edit) */
+  getStudentDetail:   (studentId) => api.get(`/fees/students/${studentId}/detail/`),
+  updateStudentDetail:(studentId, data, config) => api.patch(`/fees/students/${studentId}/detail/`, data, config),
+  /* Per-head, per-month discounts */
+  monthlyDiscounts:    (studentId) => api.get('/fees/discounts/monthly/', { params: { student_id: studentId } }),
+  saveMonthlyDiscounts:(studentId, discounts) => api.post('/fees/discounts/monthly/', { student_id: studentId, discounts }),
+  /* Fee Management — Summary & Transactions */
+  feeSummary:         (params) => api.get('/fees/summary/', { params }),
+  feeTransactions:    (params) => api.get('/fees/transactions/', { params }),
 }
 
 export const masterApi = {
@@ -181,6 +197,7 @@ export const transportApi = {
   updatePart:           (id, data) => api.patch(`/transport/parts/${id}/`, data),
   deletePart:           (id) => api.delete(`/transport/parts/${id}/`),
   dashboard:            () => api.get('/transport/dashboard/'),
+  applyStudentTransport:(data) => api.post('/transport/apply/', data),
 }
 
 export const admissionApi = {

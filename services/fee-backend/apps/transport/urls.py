@@ -17,4 +17,5 @@ urlpatterns = [
     path('parts/', views.VehiclePartListCreateView.as_view(), name='vehicle-part-list'),
     path('parts/<int:pk>/', views.VehiclePartDetailView.as_view(), name='vehicle-part-detail'),
     path('dashboard/', views.TransportDashboardView.as_view(), name='transport-dashboard'),
+    path('apply/', views.ApplyTransportView.as_view(), name='transport-apply'),
 ]

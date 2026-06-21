@@ -10,7 +10,10 @@ const api = axios.create({
 
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('access_token')
-  if (token) config.headers.Authorization = `Bearer ${token}`
+  // Public pre-login calls (e.g. login page session dropdown) opt out via
+  // { skipAuth: true } — a stale/expired token here would 401 the request,
+  // since JWT auth rejects bad tokens before AllowAny is even checked.
+  if (token && !config.skipAuth) config.headers.Authorization = `Bearer ${token}`
   return config
 })
 
@@ -52,7 +55,7 @@ api.interceptors.response.use(
 export default api
 
 export const authApi = {
-  login:             (data) => api.post('/auth/login/', data, { suppressErrorToast: true }),
+  login:             (data) => api.post('/auth/login/', data, { suppressErrorToast: true, skipAuth: true }),
   logout:            (refresh) => api.post('/auth/logout/', { refresh }),
   profile:           () => api.get('/auth/profile/'),
   changePassword:    (data) => api.post('/auth/change-password/', data),
@@ -141,9 +144,10 @@ export const staffApi = {
   createLeaveType:   (data) => api.post('/staff/leave-types/', data),
   updateLeaveType:   (id, data) => api.patch(`/staff/leave-types/${id}/`, data),
   deleteLeaveType:   (id) => api.delete(`/staff/leave-types/${id}/`),
-  leaveRequests:     (params) => api.get('/staff/leave-requests/', { params }),
-  leaveAction:       (id, action) => api.post(`/staff/leave-requests/${id}/action/`, { action }),
-  leaveBalance:      (params) => api.get('/staff/leave-balance/', { params }),
+  leaveRequests:      (params) => api.get('/staff/leave-requests/', { params }),
+  createLeaveRequest: (data) => api.post('/staff/leave-requests/', data),
+  leaveAction:        (id, action) => api.post(`/staff/leave-requests/${id}/action/`, { action }),
+  leaveBalance:       (params) => api.get('/staff/leave-balance/', { params }),
 }
 
 export const attendanceApi = {
@@ -153,6 +157,9 @@ export const attendanceApi = {
   absentLog:    () => api.get('/attendance/students/absent-log/'),
   summary:      (params) => api.get('/attendance/students/summary/', { params }),
   staffList:    (params) => api.get('/attendance/staff/', { params }),
+  staffRoster:  (params) => api.get('/attendance/staff/roster/', { params }),
+  staffBulkMark:(data) => api.post('/attendance/staff/bulk/', data),
+  staffMonthly: (params) => api.get('/attendance/staff/monthly/', { params }),
   markStaff:    (data) => api.post('/attendance/staff/', data),
   holidays:     (params) => api.get('/attendance/holidays/', { params }),
   createHoliday:(data) => api.post('/attendance/holidays/', data),
@@ -207,6 +214,31 @@ export const academicsApi = {
   classResults:          (params) => api.get('/academics/results/', { params }),
   /* Report card */
   reportCard:            (params) => api.get('/academics/report-card/', { params }),
+  /* CCE — Grade Master */
+  grades:                (params) => api.get('/academics/grades/', { params }),
+  createGrade:           (data) => api.post('/academics/grades/', data),
+  updateGrade:           (id, data) => api.patch(`/academics/grades/${id}/`, data),
+  deleteGrade:           (id) => api.delete(`/academics/grades/${id}/`),
+  /* CCE — Test Master */
+  tests:                 (params) => api.get('/academics/tests/', { params }),
+  createTest:            (data) => api.post('/academics/tests/', data),
+  updateTest:            (id, data) => api.patch(`/academics/tests/${id}/`, data),
+  deleteTest:            (id) => api.delete(`/academics/tests/${id}/`),
+  /* CCE — Co-Scholastic Subject Master */
+  coScholasticSubjects:       (params) => api.get('/academics/co-scholastic-subjects/', { params }),
+  createCoScholasticSubject:  (data) => api.post('/academics/co-scholastic-subjects/', data),
+  updateCoScholasticSubject:  (id, data) => api.patch(`/academics/co-scholastic-subjects/${id}/`, data),
+  deleteCoScholasticSubject:  (id) => api.delete(`/academics/co-scholastic-subjects/${id}/`),
+  coScholasticAssignments:      () => api.get('/academics/co-scholastic-assignments/'),
+  saveCoScholasticAssignments:  (data) => api.post('/academics/co-scholastic-assignments/', data),
+  /* CCE — Assign Subject & Test grid */
+  assignSubjectTest:     (params) => api.get('/academics/assign-subject-test/', { params }),
+  saveAssignSubjectTest: (data) => api.post('/academics/assign-subject-test/', data),
+  /* CCE — Marks Feeding */
+  marksFeedingTests:     (params) => api.get('/academics/marks-feeding/tests/', { params }),
+  marksFeedingSubjects:  (params) => api.get('/academics/marks-feeding/subjects/', { params }),
+  marksFeedingGrid:      (params) => api.get('/academics/marks-feeding/grid/', { params }),
+  saveMarksFeedingGrid:  (data) => api.post('/academics/marks-feeding/grid/', data),
 }
 
 export const adminApi = {

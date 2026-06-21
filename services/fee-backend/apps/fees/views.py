@@ -9,7 +9,7 @@ from .models import (
     FeeHead, FeeAmount, FeeStructure, DiscountHead, StudentFeeDiscount,
     FeeReceipt, FeeReceiptItem, AdditionalFee, DepositFee,
     BookSet, Book, BookSale, UniformItem, UniformSale, UniformSaleItem,
-    AdmissionQuery, RegistrationFeePaid, StudentFeeDetail
+    AdmissionQuery, FeePaid, StudentFeeDetail, StudentFeeHeadMonthDiscount
 )
 from .serializers import (
     FeeHeadSerializer, FeeAmountSerializer, FeeStructureSerializer, DiscountHeadSerializer,
@@ -17,9 +17,11 @@ from .serializers import (
     PayFeeSerializer, AdditionalFeeSerializer, DepositFeeSerializer,
     BookSetSerializer, BookSerializer, BookSaleSerializer,
     UniformItemSerializer, UniformSaleSerializer,
-    AdmissionQuerySerializer, AdmissionQueryListSerializer, RegistrationFeePaidSerializer
+    AdmissionQuerySerializer, AdmissionQueryListSerializer, FeePaidSerializer,
+    StudentFeeHeadMonthDiscountSerializer
 )
 from utils.permissions import IsSchoolAdmin, IsSchoolStaff
+from utils.session import SessionScopedMixin, current_session_year, resolve_session_field
 import uuid
 
 
@@ -27,42 +29,33 @@ def generate_receipt_no(prefix='R'):
     return f"{prefix}{timezone.now().strftime('%Y%m%d')}{str(uuid.uuid4().int)[:6]}"
 
 
-class FeeHeadListCreateView(generics.ListCreateAPIView):
+class FeeHeadListCreateView(SessionScopedMixin, generics.ListCreateAPIView):
     serializer_class = FeeHeadSerializer
     permission_classes = [IsSchoolAdmin]
-    
-    def get_queryset(self):
-        qs = FeeHead.objects.all().order_by('-created_at')
-        session = self.request.query_params.get('session')
-        if session:
-            qs = qs.filter(session=session)
-        return qs
+    queryset = FeeHead.objects.all().order_by('-created_at')
 
 
-class FeeHeadDetailView(generics.RetrieveUpdateDestroyAPIView):
+class FeeHeadDetailView(SessionScopedMixin, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = FeeHeadSerializer
     permission_classes = [IsSchoolAdmin]
     queryset = FeeHead.objects.all()
 
 
-class FeeAmountListCreateView(generics.ListCreateAPIView):
+class FeeAmountListCreateView(SessionScopedMixin, generics.ListCreateAPIView):
     serializer_class = FeeAmountSerializer
     permission_classes = [IsSchoolAdmin]
+    queryset = FeeAmount.objects.all().order_by('head_name')
 
     def get_queryset(self):
-        qs = FeeAmount.objects.all().order_by('head_name')
+        qs = super().get_queryset()
         class_id = self.request.query_params.get('class_id')
         type_param = self.request.query_params.get('type')
-        session = self.request.query_params.get('session')
-        
         if class_id:
             qs = qs.filter(class_id=class_id)
         if type_param:
             qs = qs.filter(type=type_param)
-        if session:
-            qs = qs.filter(session=session)
         return qs
-    
+
     def create(self, request, *args, **kwargs):
         # Bulk create for multiple fee heads
         data_list = request.data if isinstance(request.data, list) else [request.data]
@@ -72,7 +65,7 @@ class FeeAmountListCreateView(generics.ListCreateAPIView):
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
-class FeeAmountDetailView(generics.RetrieveUpdateDestroyAPIView):
+class FeeAmountDetailView(SessionScopedMixin, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = FeeAmountSerializer
     permission_classes = [IsSchoolAdmin]
     queryset = FeeAmount.objects.all()
@@ -105,17 +98,16 @@ class FeeAmountBulkUpdateView(APIView):
         })
 
 
-class FeeStructureListCreateView(generics.ListCreateAPIView):
+class FeeStructureListCreateView(SessionScopedMixin, generics.ListCreateAPIView):
     serializer_class = FeeStructureSerializer
     permission_classes = [IsSchoolAdmin]
+    queryset = FeeStructure.objects.select_related('fee_head')
 
     def get_queryset(self):
-        qs = FeeStructure.objects.select_related('fee_head')
+        qs = super().get_queryset()
         params = self.request.query_params
         if params.get('class_id'):
             qs = qs.filter(class_id=params['class_id'])
-        if params.get('session_year'):
-            qs = qs.filter(session_year=params['session_year'])
         return qs
 
 
@@ -125,12 +117,13 @@ class DiscountHeadListCreateView(generics.ListCreateAPIView):
     queryset = DiscountHead.objects.filter(is_active=True)
 
 
-class StudentFeeDiscountView(generics.ListCreateAPIView):
+class StudentFeeDiscountView(SessionScopedMixin, generics.ListCreateAPIView):
     serializer_class = StudentFeeDiscountSerializer
     permission_classes = [IsSchoolStaff]
+    queryset = StudentFeeDiscount.objects.select_related('discount_head', 'fee_head')
 
     def get_queryset(self):
-        qs = StudentFeeDiscount.objects.select_related('discount_head', 'fee_head')
+        qs = super().get_queryset()
         if self.request.query_params.get('student_id'):
             qs = qs.filter(student_id=self.request.query_params['student_id'])
         return qs
@@ -159,7 +152,7 @@ class PayFeeView(APIView):
             class_name=data['class_name'],
             section_name=data['section_name'],
             admission_no=data['admission_no'],
-            session_year=data['session_year'],
+            session_year=current_session_year() or data['session_year'],
             payment_date=data['payment_date'],
             payment_mode=data['payment_mode'],
             cheque_no=data.get('cheque_no', ''),
@@ -186,12 +179,13 @@ class PayFeeView(APIView):
         return Response(FeeReceiptSerializer(receipt).data, status=status.HTTP_201_CREATED)
 
 
-class FeeReceiptListView(generics.ListAPIView):
+class FeeReceiptListView(SessionScopedMixin, generics.ListAPIView):
     serializer_class = FeeReceiptListSerializer
     permission_classes = [IsSchoolStaff]
+    queryset = FeeReceipt.objects.all()
 
     def get_queryset(self):
-        qs = FeeReceipt.objects.all()
+        qs = super().get_queryset()
         params = self.request.query_params
         if params.get('student_id'):
             qs = qs.filter(student_id=params['student_id'])
@@ -208,7 +202,7 @@ class FeeReceiptListView(generics.ListAPIView):
         return qs
 
 
-class FeeReceiptDetailView(generics.RetrieveAPIView):
+class FeeReceiptDetailView(SessionScopedMixin, generics.RetrieveAPIView):
     serializer_class = FeeReceiptSerializer
     permission_classes = [IsSchoolStaff]
     queryset = FeeReceipt.objects.all()
@@ -220,6 +214,9 @@ class DailyCollectionReportView(APIView):
     def get(self, request):
         date = request.query_params.get('date', str(timezone.now().date()))
         receipts = FeeReceipt.objects.filter(payment_date=date, status='paid')
+        session_year = current_session_year()
+        if session_year:
+            receipts = receipts.filter(session_year=session_year)
         total = receipts.aggregate(total=Sum('net_amount'))['total'] or 0
         by_mode = receipts.values('payment_mode').annotate(
             count=Count('id'), amount=Sum('net_amount')
@@ -238,8 +235,9 @@ class ClasswiseCollectionReportView(APIView):
     def get(self, request):
         params = request.query_params
         qs = FeeReceipt.objects.filter(status='paid')
-        if params.get('session_year'):
-            qs = qs.filter(session_year=params['session_year'])
+        session_year = params.get('session_year') or current_session_year()
+        if session_year:
+            qs = qs.filter(session_year=session_year)
         if params.get('from_date') and params.get('to_date'):
             qs = qs.filter(payment_date__range=[params['from_date'], params['to_date']])
         data = qs.values('class_name').annotate(
@@ -254,7 +252,7 @@ class FeeDefaulterView(APIView):
 
     def get(self, request):
         params = request.query_params
-        session_year = params.get('session_year', '')
+        session_year = params.get('session_year') or current_session_year() or ''
         paid_student_ids = FeeReceipt.objects.filter(
             session_year=session_year, status='paid'
         ).values_list('student_id', flat=True).distinct()
@@ -265,15 +263,10 @@ class FeeDefaulterView(APIView):
         })
 
 
-class BookSetListCreateView(generics.ListCreateAPIView):
+class BookSetListCreateView(SessionScopedMixin, generics.ListCreateAPIView):
     serializer_class = BookSetSerializer
     permission_classes = [IsSchoolAdmin]
-
-    def get_queryset(self):
-        qs = BookSet.objects.prefetch_related('books')
-        if self.request.query_params.get('session_year'):
-            qs = qs.filter(session_year=self.request.query_params['session_year'])
-        return qs
+    queryset = BookSet.objects.prefetch_related('books')
 
 
 class BookListCreateView(generics.ListCreateAPIView):
@@ -351,7 +344,7 @@ class AdditionalFeeListCreateView(generics.ListCreateAPIView):
     queryset = AdditionalFee.objects.filter(is_active=True)
 
 
-class FeeStructureDetailView(generics.RetrieveUpdateDestroyAPIView):
+class FeeStructureDetailView(SessionScopedMixin, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = FeeStructureSerializer
     permission_classes = [IsSchoolAdmin]
     queryset = FeeStructure.objects.all()
@@ -386,13 +379,13 @@ class MonthlyCollectionReportView(APIView):
         params = request.query_params
         month = params.get('month')
         year = params.get('year')
-        session_year = params.get('session_year', '')
+        session_year = params.get('session_year') or current_session_year() or ''
 
         qs = FeeReceipt.objects.filter(status='paid')
+        if session_year:
+            qs = qs.filter(session_year=session_year)
         if month and year:
             qs = qs.filter(payment_date__month=month, payment_date__year=year)
-        elif session_year:
-            qs = qs.filter(session_year=session_year)
 
         total = qs.aggregate(total=Sum('net_amount'))['total'] or 0
         by_mode = qs.values('payment_mode').annotate(
@@ -412,7 +405,7 @@ class MonthlyCollectionReportView(APIView):
         })
 
 
-class BookSetDetailView(generics.RetrieveUpdateDestroyAPIView):
+class BookSetDetailView(SessionScopedMixin, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = BookSetSerializer
     permission_classes = [IsSchoolAdmin]
     queryset = BookSet.objects.all()
@@ -442,25 +435,25 @@ class AdditionalFeeDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = AdditionalFee.objects.all()
 
 
-class AdmissionQueryListCreateView(generics.ListCreateAPIView):
+class AdmissionQueryListCreateView(SessionScopedMixin, generics.ListCreateAPIView):
     permission_classes = [IsSchoolStaff]
-    
+    queryset = AdmissionQuery.objects.all()
+    session_scope_create = False  # injected manually below alongside created_by
+
     def get_serializer_class(self):
         if self.request.method == 'GET':
             return AdmissionQueryListSerializer
         return AdmissionQuerySerializer
-    
+
     def get_queryset(self):
-        qs = AdmissionQuery.objects.all()
+        qs = super().get_queryset()
         params = self.request.query_params
-        
+
         # Filters
         if params.get('status'):
             qs = qs.filter(status=params['status'])
         if params.get('adm_status'):
             qs = qs.filter(adm_status=params['adm_status'])
-        if params.get('session'):
-            qs = qs.filter(session=params['session'])
         if params.get('class_id'):
             qs = qs.filter(class_id=params['class_id'])
         if params.get('source'):
@@ -477,8 +470,13 @@ class AdmissionQueryListCreateView(generics.ListCreateAPIView):
         return qs
     
     def perform_create(self, serializer):
-        query = serializer.save(created_by=self.request.user.id if hasattr(self.request.user, 'id') else None)
-        
+        extra = {'created_by': self.request.user.id if hasattr(self.request.user, 'id') else None}
+        session_year = current_session_year()
+        field = resolve_session_field(serializer.Meta.model) if session_year else None
+        if field:
+            extra[field] = session_year
+        query = serializer.save(**extra)
+
         # Send email notification to father's email
         if query.father_email:
             self.send_query_email(query)
@@ -507,10 +505,10 @@ Best Regards,
 School Administration
             """
             
-            print(f"📧 Attempting to send email to: {query.father_email}")
-            print(f"📧 From: {settings.DEFAULT_FROM_EMAIL}")
-            print(f"📧 Subject: {subject}")
-            
+            print(f"Attempting to send email to: {query.father_email}")
+            print(f"From: {settings.DEFAULT_FROM_EMAIL}")
+            print(f"Subject: {subject}")
+
             send_mail(
                 subject=subject,
                 message=message,
@@ -518,17 +516,17 @@ School Administration
                 recipient_list=[query.father_email],
                 fail_silently=False,  # Changed to False to see errors
             )
-            
-            print(f"✅ Email sent successfully to {query.father_email}")
-            
+
+            print(f"Email sent successfully to {query.father_email}")
+
         except Exception as e:
-            print(f"❌ Email sending failed: {str(e)}")
-            print(f"❌ Error type: {type(e).__name__}")
+            print(f"Email sending failed: {str(e)}")
+            print(f"Error type: {type(e).__name__}")
             import traceback
             print(traceback.format_exc())
 
 
-class AdmissionQueryDetailView(generics.RetrieveUpdateDestroyAPIView):
+class AdmissionQueryDetailView(SessionScopedMixin, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = AdmissionQuerySerializer
     permission_classes = [IsSchoolStaff]
     queryset = AdmissionQuery.objects.all()
@@ -565,40 +563,37 @@ class PayRegistrationFeeView(APIView):
         try:
             query_id = request.data.get('admission_query_id')
             query = AdmissionQuery.objects.get(pk=query_id)
-            
+
             # Check if already paid
-            if hasattr(query, 'registration_payment'):
+            if FeePaid.objects.filter(stu_id=query.id, type='EXTRA').exists():
                 return Response(
                     {'detail': 'Registration fee already paid for this enquiry.'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
-            
+
             # Generate receipt number
-            receipt_no = f"REG{timezone.now().strftime('%Y%m%d')}{str(uuid.uuid4().int)[:6]}"
-            
-            # Create payment record
-            payment = RegistrationFeePaid.objects.create(
-                admission_query=query,
-                student_name=query.student_name,
-                father_name=query.father_name,
-                class_name=query.class_name,
-                mobile=query.father_mobile,
+            rec_no = f"REG{timezone.now().strftime('%Y%m%d')}{str(uuid.uuid4().int)[:6]}"
+
+            # Create payment record. Registration fee is paid before the
+            # student is approved/created, so stu_id holds the admission
+            # query's id (not a real student id) and type is 'EXTRA'.
+            payment = FeePaid.objects.create(
+                stu_id=query.id,
+                type='EXTRA',
+                session=query.session,
                 amount=request.data.get('amount', 100.00),
-                payment_mode=request.data.get('payment_mode'),
-                payment_date=request.data.get('payment_date'),
-                transaction_id=request.data.get('transaction_id', ''),
-                bank_name=request.data.get('bank_name', ''),
-                receipt_no=receipt_no,
-                collected_by=request.user.id if hasattr(request.user, 'id') else None,
-                remarks=request.data.get('remarks', '')
+                mode=request.data.get('payment_mode'),
+                date=request.data.get('payment_date'),
+                trans_id=request.data.get('transaction_id', ''),
+                rec_no=rec_no,
             )
-            
+
             # Update admission query status to 'registered' after payment
             query.adm_status = 'registered'
             query.save()
-            
+
             return Response(
-                RegistrationFeePaidSerializer(payment).data,
+                FeePaidSerializer(payment).data,
                 status=status.HTTP_201_CREATED
             )
             
@@ -621,31 +616,28 @@ class RegistrationReceiptView(APIView):
         """Get registration receipt by admission query ID"""
         try:
             query = AdmissionQuery.objects.get(pk=pk)
-            
-            if not hasattr(query, 'registration_payment'):
+
+            payment = FeePaid.objects.filter(stu_id=query.id, type='EXTRA').first()
+            if payment is None:
                 return Response(
                     {'detail': 'No payment record found for this enquiry.'},
                     status=status.HTTP_404_NOT_FOUND
                 )
-            
-            payment = query.registration_payment
+
             receipt_data = {
-                'receipt_no': payment.receipt_no,
-                'payment_date': payment.payment_date,
-                'student_name': payment.student_name,
-                'father_name': payment.father_name,
-                'class_name': payment.class_name,
-                'mobile': payment.mobile,
+                'receipt_no': payment.rec_no,
+                'payment_date': payment.date,
+                'student_name': query.student_name,
+                'father_name': query.father_name,
+                'class_name': query.class_name,
+                'mobile': query.father_mobile,
                 'session': query.session,
                 'amount': payment.amount,
-                'payment_mode': payment.payment_mode,
-                'transaction_id': payment.transaction_id,
-                'bank_name': payment.bank_name,
-                'remarks': payment.remarks,
-                'collected_by': payment.collected_by,
+                'payment_mode': payment.mode,
+                'transaction_id': payment.trans_id,
                 'created_at': payment.created_at,
             }
-            
+
             return Response(receipt_data)
             
         except AdmissionQuery.DoesNotExist:
@@ -668,7 +660,7 @@ class ApproveAdmissionView(APIView):
             query = AdmissionQuery.objects.get(pk=pk)
             
             # Check if registration fee is paid
-            if not hasattr(query, 'registration_payment'):
+            if not FeePaid.objects.filter(stu_id=query.id, type='EXTRA').exists():
                 return Response(
                     {'detail': 'Registration fee must be paid before admission approval.'},
                     status=status.HTTP_400_BAD_REQUEST
@@ -681,6 +673,20 @@ class ApproveAdmissionView(APIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
+            # Fee structure must be defined for this class before admission can
+            # proceed — otherwise there'd be nothing to bill the student for.
+            fee_amounts = FeeAmount.objects.filter(
+                class_id=query.class_id,
+                type='new',
+                session=query.session
+            ).order_by('id')[:20]  # Max 20 heads
+
+            if not fee_amounts:
+                return Response(
+                    {'detail': 'No fee structure defined for this class. Please define the fee structure before approving admission.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
             # Generate admission number
             year = query.session.split('-')[0]
             last_student = Student.objects.filter(admission_no__startswith=f'STU{year}').order_by('-admission_no').first()
@@ -690,7 +696,7 @@ class ApproveAdmissionView(APIView):
             else:
                 new_num = 1
             admission_no = f'STU{year}{new_num:04d}'
-            
+
             # Create student record
             student = Student.objects.create(
                 admission_no=admission_no,
@@ -703,21 +709,14 @@ class ApproveAdmissionView(APIView):
                 mother_mobile=query.mother_mobile,
                 father_email=query.father_email or '',
                 mother_email=query.mother_email or '',
-                class_name=query.class_name,
-                section='A',  # Default section
+                class_name=query.class_id,
+                section='1',  # SectionMaster id 1 = Section A; staff reassign the real section later
                 type='new',   # New student
                 session=query.session,
                 admission_date=timezone.now().date(),
                 status='active'
             )
-            
-            # Fetch fee structure for this class (get up to 20 heads)
-            fee_amounts = FeeAmount.objects.filter(
-                class_id=query.class_id,
-                type='new',
-                session=query.session
-            ).order_by('id')[:20]  # Max 20 heads
-            
+
             # Build dynamic column assignments for student_fee_details
             # Structure: head1_apr, head1_may, ..., head20_mar
             fee_data = {'stu_id': student.id, 'session': query.session}
@@ -836,12 +835,14 @@ class StudentSearchView(APIView):
         
         try:
             student = Student.objects.get(admission_no=admission_no)
+            class_name, section_name = resolve_student_class_section(student)
             return Response({
                 'id': student.id,
                 'admission_no': student.admission_no,
                 'student_name': student.student_name,
                 'father_name': student.father_name,
-                'class_name': student.class_name,
+                'class_name': class_name,
+                'section': section_name,
                 'session': student.session,
                 'status': student.status
             })
@@ -860,46 +861,209 @@ class StudentsByClassView(APIView):
         from apps.masters.models import Student
         
         class_name = request.query_params.get('class_name')
-        session = request.query_params.get('session')
-        
+        session = request.query_params.get('session') or current_session_year()
+
         if not class_name:
             return Response(
                 {'detail': 'class_name is required'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
+
         students = Student.objects.filter(class_name=class_name, status='active')
-        
+
         if session:
             students = students.filter(session=session)
-        
+
         students = students.order_by('student_name')
-        
-        data = [{
-            'id': s.id,
-            'admission_no': s.admission_no,
-            'student_name': s.student_name,
-            'father_name': s.father_name,
-            'class_name': s.class_name,
-            'section': s.section,
-            'type': s.type,
-            'session': s.session,
-            'admission_date': s.admission_date,
-            'father_mobile': s.father_mobile
-        } for s in students]
-        
+
+        data = []
+        for s in students:
+            resolved_class, resolved_section = resolve_student_class_section(s)
+            data.append({
+                'id': s.id,
+                'admission_no': s.admission_no,
+                'student_name': s.student_name,
+                'father_name': s.father_name,
+                'class_name': resolved_class,
+                'section': resolved_section,
+                'type': s.type,
+                'session': s.session,
+                'admission_date': s.admission_date,
+                'father_mobile': s.father_mobile
+            })
+
         return Response(data)
 
 
+MONTH_COLUMNS = ['apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec', 'jan', 'feb', 'mar']
+MONTH_NAMES = ['April', 'May', 'June', 'July', 'August', 'September',
+               'October', 'November', 'December', 'January', 'February', 'March']
+MONTH_NAME_MAP = dict(zip(MONTH_COLUMNS, MONTH_NAMES))
+# StudentFeeDetail/FeeAmount columns use 3-letter abbreviations; FeeAmount's
+# month fields are spelled out in full — this bridges the two.
+MONTH_FULL_FIELD = {
+    'apr': 'april', 'may': 'may', 'jun': 'june', 'jul': 'july',
+    'aug': 'august', 'sep': 'september', 'oct': 'october', 'nov': 'november',
+    'dec': 'december', 'jan': 'january', 'feb': 'february', 'mar': 'march',
+}
+
+
+def get_class_master_for_student(student):
+    """Resolve a Student's ClassMaster row. `class_name` stores the
+    ClassMaster id for students approved after the id-based refactor (see
+    ApproveAdmissionView) — older rows still hold the class's display name,
+    so fall back to a name match."""
+    from apps.masters.models import ClassMaster
+
+    class_master = None
+    if str(student.class_name).isdigit():
+        class_master = ClassMaster.objects.filter(
+            id=student.class_name, session=student.session
+        ).first()
+    if class_master is None:
+        class_master = ClassMaster.objects.filter(
+            class_name=student.class_name, session=student.session
+        ).first()
+    return class_master
+
+
+def get_section_master_for_student(student):
+    """Resolve a Student's SectionMaster row. `section` stores the
+    SectionMaster id directly (not a ClassSectionMaster id — that table only
+    maps "which sections exist for a class", it doesn't identify a specific
+    student's section). Older rows may hold the literal section letter
+    instead, so fall back to a name match."""
+    from apps.masters.models import SectionMaster
+
+    section_master = None
+    if str(student.section).isdigit():
+        section_master = SectionMaster.objects.filter(id=student.section).first()
+    if section_master is None:
+        section_master = SectionMaster.objects.filter(section=student.section).first()
+    return section_master
+
+
+def resolve_student_class_section(student):
+    """Display-ready (class_name, section_name) for a student, resolved via
+    ClassMaster/SectionMaster — never the raw stored id/legacy text."""
+    class_master = get_class_master_for_student(student)
+    section_master = get_section_master_for_student(student)
+    return (
+        class_master.class_name if class_master else student.class_name,
+        section_master.section if section_master else student.section,
+    )
+
+
+def get_class_fee_amounts(class_master, session):
+    """Ordered FeeAmount rows for a class+session — this order IS the
+    head_number convention used throughout (head_number = 1-based position
+    in this list), matching how ApproveAdmissionView originally populated
+    StudentFeeDetail."""
+    if not class_master:
+        return []
+    return list(FeeAmount.objects.filter(
+        class_id=class_master.id, session=session, type='new'
+    ).order_by('id')[:20])
+
+
+def find_transport_head_number(class_master, session):
+    """Position (1-based) of the FeeAmount row named 'Transport' for this
+    class+session, or None if not configured. Apply Transport requires this
+    to exist so a head_number slot is reserved in StudentFeeDetail."""
+    fee_amounts = get_class_fee_amounts(class_master, session)
+    for idx, fa in enumerate(fee_amounts, start=1):
+        if (fa.head_name or '').strip().lower() == 'transport':
+            return idx
+    return None
+
+
+def get_student_monthly_breakdown(student, months=None):
+    """Per-head, per-month due/discount/paid/balance for a student.
+
+    due      — from StudentFeeDetail.head{n}_{month}
+    discount — from StudentFeeHeadMonthDiscount (permanent, head+month+student)
+    paid     — sum of REGULAR FeePaid.head{n} for rows recorded against that month
+    balance  — max(0, due - discount - paid)
+
+    `months` optionally restricts the per-month rows to a subset (still
+    returns annual totals across all 12 regardless, for the profile summary).
+    """
+    class_master = get_class_master_for_student(student)
+    fee_amounts = get_class_fee_amounts(class_master, student.session)
+
+    if not fee_amounts:
+        return {'fee_structure': [], 'total_due': 0, 'total_discount': 0, 'total_paid': 0, 'total_balance': 0}
+
+    detail = StudentFeeDetail.objects.filter(stu_id=student.id, session=student.session).first()
+
+    discount_map = {
+        (d.head_number, d.month): float(d.discount_amount)
+        for d in StudentFeeHeadMonthDiscount.objects.filter(student_id=student.id, session=student.session)
+    }
+
+    paid_map = {}  # {(head_number, month): amount}
+    for p in FeePaid.objects.filter(stu_id=student.id, session=student.session, type='REGULAR'):
+        if not p.month:
+            continue
+        for i in range(1, len(fee_amounts) + 1):
+            val = getattr(p, f'head{i}', None)
+            if val:
+                key = (i, p.month)
+                paid_map[key] = paid_map.get(key, 0) + float(val)
+
+    display_months = months or MONTH_COLUMNS
+
+    fee_structure = []
+    total_due = total_discount = total_paid = 0.0
+    for idx, fa in enumerate(fee_amounts, start=1):
+        month_rows = []
+        annual_due = annual_discount = annual_paid = 0.0
+        for m in MONTH_COLUMNS:
+            due = float(getattr(detail, f'head{idx}_{m}', 0) or 0) if detail else 0.0
+            discount = discount_map.get((idx, m), 0.0)
+            paid = paid_map.get((idx, m), 0.0)
+            balance = max(0.0, due - discount - paid)
+            annual_due += due
+            annual_discount += discount
+            annual_paid += paid
+            if m in display_months:
+                month_rows.append({
+                    'month': m, 'month_name': MONTH_NAME_MAP[m],
+                    'due': due, 'discount': discount, 'paid': paid, 'balance': balance,
+                })
+
+        fee_structure.append({
+            'head_number': idx,
+            'head_name': fa.head_name,
+            'months': month_rows,
+            'annual_total': annual_due,
+            'annual_discount': annual_discount,
+            'paid': annual_paid,
+            'balance': max(0.0, annual_due - annual_discount - annual_paid),
+        })
+        total_due += annual_due
+        total_discount += annual_discount
+        total_paid += annual_paid
+
+    return {
+        'fee_structure': fee_structure,
+        'total_due': total_due,
+        'total_discount': total_discount,
+        'total_paid': total_paid,
+        'total_balance': max(0.0, total_due - total_discount - total_paid),
+    }
+
+
 class StudentProfileView(APIView):
-    """Get complete student profile with fee structure"""
+    """Get complete student profile with the full yearly month-wise fee
+    structure (due/discount/paid/balance per head per month) and transport
+    status."""
     permission_classes = [IsSchoolStaff]
-    
+
     def get(self, request, student_id):
         from apps.masters.models import Student
-        from django.db import connections
-        from utils.tenant import get_current_tenant
-        
+        from apps.transport.models import StudentTransport
+
         try:
             student = Student.objects.get(id=student_id)
         except Student.DoesNotExist:
@@ -907,11 +1071,14 @@ class StudentProfileView(APIView):
                 {'detail': 'Student not found'},
                 status=status.HTTP_404_NOT_FOUND
             )
-        
-        # Get student basic info
+
+        request_scheme = request.build_absolute_uri('/')[:-1]
+        resolved_class, resolved_section = resolve_student_class_section(student)
         profile = {
             'id': student.id,
             'admission_no': student.admission_no,
+            'roll_no': student.roll_no,
+            'photo': (request_scheme + student.photo.url) if student.photo else None,
             'student_name': student.student_name,
             'father_name': student.father_name,
             'mother_name': student.mother_name,
@@ -921,82 +1088,429 @@ class StudentProfileView(APIView):
             'mother_mobile': student.mother_mobile,
             'father_email': student.father_email,
             'mother_email': student.mother_email,
-            'class_name': student.class_name,
-            'section': student.section,
+            'class_name': resolved_class,
+            'section': resolved_section,
             'type': student.type,
             'session': student.session,
             'admission_date': student.admission_date,
-            'status': student.status
+            'status': student.status,
         }
-        
-        # Get fee structure from student_fee_details table
-        tenant_db = get_current_tenant()
-        
-        try:
-            with connections[tenant_db].cursor() as cursor:
-                cursor.execute("""
-                    SELECT * FROM student_fee_details 
-                    WHERE stu_id = %s AND session = %s
-                """, [student_id, student.session])
-                
-                columns = [col[0] for col in cursor.description]
-                row = cursor.fetchone()
-                
-                if row:
-                    fee_data = dict(zip(columns, row))
-                    
-                    # Get fee head names from fee_amount table based on class_name
-                    # Note: We need to get class_id from ClassMaster for FeeAmount query
-                    from apps.masters.models import ClassMaster
-                    class_master = ClassMaster.objects.filter(
-                        class_name=student.class_name, 
-                        session=student.session
-                    ).first()
-                    
-                    if class_master:
-                        fee_heads = FeeAmount.objects.filter(
-                            class_id=class_master.id,
-                            session=student.session,
-                            type='new'
-                        ).order_by('id')[:20]
-                    else:
-                        fee_heads = []
-                    
-                    # Format fee structure for frontend
-                    fee_structure = []
-                    months = ['apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec', 'jan', 'feb', 'mar']
-                    month_names = ['April', 'May', 'June', 'July', 'August', 'September', 
-                                  'October', 'November', 'December', 'January', 'February', 'March']
-                    
-                    for idx, fee_head in enumerate(fee_heads, start=1):
-                        head_fees = {
-                            'head_number': idx,
-                            'head_name': fee_head.head_name,
-                            'months': []
-                        }
-                        
-                        total = 0
-                        for month, month_name in zip(months, month_names):
-                            col_name = f'head{idx}_{month}'
-                            amount = float(fee_data.get(col_name, 0))
-                            total += amount
-                            head_fees['months'].append({
-                                'month': month_name,
-                                'amount': amount
-                            })
-                        
-                        head_fees['annual_total'] = total
-                        fee_structure.append(head_fees)
-                    
-                    profile['fee_structure'] = fee_structure
-                    profile['has_fee_structure'] = True
-                else:
-                    profile['fee_structure'] = []
-                    profile['has_fee_structure'] = False
-                    
-        except Exception as e:
-            print(f"Error fetching fee structure: {e}")
-            profile['fee_structure'] = []
-            profile['has_fee_structure'] = False
-        
+
+        breakdown = get_student_monthly_breakdown(student)
+        profile['fee_structure'] = breakdown['fee_structure']
+        profile['has_fee_structure'] = len(breakdown['fee_structure']) > 0
+        profile['total_due'] = breakdown['total_due']
+        profile['total_discount'] = breakdown['total_discount']
+        profile['total_paid'] = breakdown['total_paid']
+        profile['total_balance'] = breakdown['total_balance']
+
+        transport = StudentTransport.objects.filter(
+            student_id=student.id, session_year=student.session, status='active'
+        ).select_related('route', 'stop').first()
+        profile['transport'] = None
+        if transport:
+            profile['transport'] = {
+                'id': transport.id,
+                'route_id': transport.route_id,
+                'route_name': transport.route.name,
+                'stop_id': transport.stop_id,
+                'stop_name': transport.stop.name,
+                'monthly_fee': float(transport.stop.monthly_fee),
+                'start_date': transport.start_date,
+            }
+
+        payment_history = FeePaid.objects.filter(
+            stu_id=student.id, session=student.session, type='REGULAR'
+        ).order_by('-date', '-created_at')
+        profile['payment_history'] = FeePaidSerializer(payment_history, many=True).data
+
         return Response(profile)
+
+
+class PayStudentFeeView(APIView):
+    """Pay fee heads for a student across a month range. Body:
+    {
+      from_month, to_month,                  # 3-letter abbrs, e.g. 'apr'..'mar'
+      heads_by_month: {month: {head_no: amount}},
+      discounts_by_month: {month: {head_no: discount_amount}},  # optional
+      mode, date, remarks, trans_id
+    }
+    One FeePaid row is created per month that has a non-zero amount. Discount
+    entries are upserted into StudentFeeHeadMonthDiscount (permanent — same
+    store the standalone Apply Discount action uses). Both amount and
+    discount are validated against the live balance server-side."""
+    permission_classes = [IsSchoolStaff]
+
+    def post(self, request, student_id):
+        from apps.masters.models import Student
+
+        try:
+            student = Student.objects.get(id=student_id)
+        except Student.DoesNotExist:
+            return Response({'detail': 'Student not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        from_month = request.data.get('from_month')
+        to_month = request.data.get('to_month')
+        if from_month not in MONTH_COLUMNS or to_month not in MONTH_COLUMNS:
+            return Response({'detail': 'Valid from_month and to_month are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        start_idx, end_idx = MONTH_COLUMNS.index(from_month), MONTH_COLUMNS.index(to_month)
+        if start_idx > end_idx:
+            return Response({'detail': 'from_month must come before to_month in the academic year (Apr-Mar).'}, status=status.HTTP_400_BAD_REQUEST)
+        month_range = MONTH_COLUMNS[start_idx:end_idx + 1]
+
+        breakdown = get_student_monthly_breakdown(student, months=month_range)
+        if not breakdown['fee_structure']:
+            return Response({'detail': 'No fee structure assigned to this student.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        balance_lookup = {}   # (head_no, month) -> balance
+        head_name_by_number = {}
+        for head in breakdown['fee_structure']:
+            head_name_by_number[head['head_number']] = head['head_name']
+            for m in head['months']:
+                balance_lookup[(head['head_number'], m['month'])] = m['balance']
+
+        heads_by_month = request.data.get('heads_by_month') or {}
+        discounts_by_month = request.data.get('discounts_by_month') or {}
+        mode = request.data.get('mode')
+        date = request.data.get('date')
+        remarks = request.data.get('remarks', '')
+        if not mode or not date:
+            return Response({'detail': 'mode and date are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        errors = []
+        per_month_heads = {}     # month -> {f'head{n}': amount}
+        per_month_discounts = {} # month -> {head_no: discount}
+        total_amount = 0.0
+
+        for month in month_range:
+            head_amounts = heads_by_month.get(month) or {}
+            head_discounts = discounts_by_month.get(month) or {}
+
+            for head_str, raw_disc in head_discounts.items():
+                try:
+                    head_no = int(head_str)
+                    disc = float(raw_disc)
+                except (TypeError, ValueError):
+                    errors.append(f'{month}/head{head_str}: invalid discount amount')
+                    continue
+                if disc <= 0:
+                    continue
+                balance = balance_lookup.get((head_no, month), 0)
+                if disc > balance + 0.01:
+                    name = head_name_by_number.get(head_no, f'head{head_no}')
+                    errors.append(f"{name} ({MONTH_NAME_MAP[month]}): discount ₹{disc:.2f} exceeds due ₹{balance:.2f}")
+                    continue
+                per_month_discounts.setdefault(month, {})[head_no] = disc
+                balance_lookup[(head_no, month)] = balance - disc  # net remaining for the amount check below
+
+            month_total = 0.0
+            for head_str, raw_amt in head_amounts.items():
+                try:
+                    head_no = int(head_str)
+                    amt = float(raw_amt)
+                except (TypeError, ValueError):
+                    errors.append(f'{month}/head{head_str}: invalid amount')
+                    continue
+                if amt <= 0:
+                    continue
+                balance = balance_lookup.get((head_no, month), 0)
+                if amt > balance + 0.01:
+                    name = head_name_by_number.get(head_no, f'head{head_no}')
+                    errors.append(f"{name} ({MONTH_NAME_MAP[month]}): amount ₹{amt:.2f} exceeds balance due ₹{balance:.2f}")
+                    continue
+                per_month_heads.setdefault(month, {})[f'head{head_no}'] = amt
+                month_total += amt
+            total_amount += month_total
+
+        if errors:
+            return Response({'detail': 'Validation failed', 'errors': errors}, status=status.HTTP_400_BAD_REQUEST)
+
+        if total_amount <= 0 and not per_month_discounts:
+            return Response({'detail': 'Enter at least one fee head amount or discount to save.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Persist discounts first (permanent records regardless of whether a payment is also made this time).
+        for month, head_map in per_month_discounts.items():
+            for head_no, disc in head_map.items():
+                StudentFeeHeadMonthDiscount.objects.update_or_create(
+                    student_id=student.id, head_number=head_no, month=month, session=student.session,
+                    defaults={'discount_amount': disc, 'created_by': request.user.id, 'remarks': remarks},
+                )
+
+        created_payments = []
+        for month, head_amounts in per_month_heads.items():
+            month_amount = sum(head_amounts.values())
+            if month_amount <= 0:
+                continue
+            rec_no = f"FEE{timezone.now().strftime('%Y%m%d')}{str(uuid.uuid4().int)[:6]}"
+            payment = FeePaid.objects.create(
+                stu_id=student.id,
+                type='REGULAR',
+                session=student.session,
+                month=month,
+                amount=month_amount,
+                mode=mode,
+                date=date,
+                trans_id=request.data.get('trans_id', ''),
+                remarks=remarks,
+                rec_no=rec_no,
+                **head_amounts,
+            )
+            created_payments.append(payment)
+
+        return Response({
+            'detail': f'{len(created_payments)} month(s) recorded, ₹{total_amount:.2f} collected.',
+            'total_amount': total_amount,
+            'payments': FeePaidSerializer(created_payments, many=True).data,
+        }, status=status.HTTP_201_CREATED)
+
+
+class StudentDetailUpdateView(APIView):
+    """GET/PATCH the full Student record — backs the 'Complete Detail' form.
+    Changing `class_name` requires `effective_month`: months before it keep
+    the OLD class's structure untouched, and from that month through March
+    the NEW class's FeeAmount values are written into StudentFeeDetail."""
+    permission_classes = [IsSchoolStaff]
+
+    def get(self, request, student_id):
+        from apps.masters.models import Student
+        from apps.masters.serializers import StudentDetailSerializer
+        try:
+            student = Student.objects.get(id=student_id)
+        except Student.DoesNotExist:
+            return Response({'detail': 'Student not found'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(StudentDetailSerializer(student).data)
+
+    def patch(self, request, student_id):
+        from apps.masters.models import Student
+        from apps.masters.serializers import StudentDetailSerializer
+
+        try:
+            student = Student.objects.get(id=student_id)
+        except Student.DoesNotExist:
+            return Response({'detail': 'Student not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        new_class_name = request.data.get('class_name')
+        class_changed = new_class_name is not None and str(new_class_name) != str(student.class_name)
+        effective_month = request.data.get('effective_month')
+
+        if class_changed:
+            if not effective_month:
+                return Response(
+                    {'detail': 'effective_month is required when changing class — months before it keep the old fee structure.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            if effective_month not in MONTH_COLUMNS:
+                return Response({'detail': 'Invalid effective_month.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = StudentDetailSerializer(student, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        applied_heads = 0
+        if class_changed:
+            applied_heads = self._apply_class_change_fee_split(student, effective_month)
+
+        return Response({
+            **StudentDetailSerializer(student).data,
+            'class_changed': class_changed,
+            'fee_heads_updated': applied_heads,
+        })
+
+    def _apply_class_change_fee_split(self, student, effective_month):
+        class_master = get_class_master_for_student(student)
+        fee_amounts = get_class_fee_amounts(class_master, student.session)
+        if not fee_amounts:
+            return 0
+
+        detail, _ = StudentFeeDetail.objects.get_or_create(stu_id=student.id, session=student.session)
+        start_idx = MONTH_COLUMNS.index(effective_month)
+        months_to_update = MONTH_COLUMNS[start_idx:]
+
+        for idx, fa in enumerate(fee_amounts, start=1):
+            for m in months_to_update:
+                new_amount = getattr(fa, MONTH_FULL_FIELD[m], 0)
+                setattr(detail, f'head{idx}_{m}', new_amount)
+        detail.save()
+        return len(fee_amounts)
+
+
+class StudentFeeHeadMonthDiscountView(generics.ListAPIView):
+    """GET: list a student's per-head-per-month discounts.
+    POST: upsert one or many {head_number, month, discount_amount, remarks}
+    rows — used by the standalone Apply Discount action (the Pay Fee modal's
+    discount fields write to this same store via PayStudentFeeView)."""
+    serializer_class = StudentFeeHeadMonthDiscountSerializer
+    permission_classes = [IsSchoolStaff]
+
+    def get_queryset(self):
+        qs = StudentFeeHeadMonthDiscount.objects.all()
+        student_id = self.request.query_params.get('student_id')
+        if student_id:
+            qs = qs.filter(student_id=student_id)
+        return qs.order_by('head_number', 'month')
+
+    def post(self, request):
+        from apps.masters.models import Student
+
+        student_id = request.data.get('student_id')
+        rows = request.data.get('discounts', [])
+        if not student_id or not rows:
+            return Response({'detail': 'student_id and discounts are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            student = Student.objects.get(id=student_id)
+        except Student.DoesNotExist:
+            return Response({'detail': 'Student not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        breakdown = get_student_monthly_breakdown(student)
+        balance_lookup = {}
+        head_name_by_number = {}
+        for head in breakdown['fee_structure']:
+            head_name_by_number[head['head_number']] = head['head_name']
+            for m in head['months']:
+                balance_lookup[(head['head_number'], m['month'])] = m['balance']
+
+        errors = []
+        saved = []
+        for row in rows:
+            try:
+                head_no = int(row.get('head_number'))
+                month = row.get('month')
+                disc = float(row.get('discount_amount'))
+            except (TypeError, ValueError):
+                errors.append(f'Invalid row: {row}')
+                continue
+            if month not in MONTH_COLUMNS:
+                errors.append(f'Invalid month: {month}')
+                continue
+            balance = balance_lookup.get((head_no, month), 0)
+            if disc > balance + 0.01:
+                name = head_name_by_number.get(head_no, f'head{head_no}')
+                errors.append(f"{name} ({MONTH_NAME_MAP[month]}): discount ₹{disc:.2f} exceeds fee amount due ₹{balance:.2f}")
+                continue
+            saved.append((head_no, month, disc, row.get('remarks', '')))
+
+        if errors:
+            return Response({'detail': 'Validation failed', 'errors': errors}, status=status.HTTP_400_BAD_REQUEST)
+
+        results = []
+        for head_no, month, disc, remarks in saved:
+            obj, _ = StudentFeeHeadMonthDiscount.objects.update_or_create(
+                student_id=student.id, head_number=head_no, month=month, session=student.session,
+                defaults={'discount_amount': disc, 'remarks': remarks, 'created_by': request.user.id},
+            )
+            results.append(obj)
+
+        return Response(
+            StudentFeeHeadMonthDiscountSerializer(results, many=True).data,
+            status=status.HTTP_201_CREATED
+        )
+
+
+class FeeSummaryView(APIView):
+    """Student-wise, month-wise due/paid/balance summary, filterable by
+    class, section, session, and month range."""
+    permission_classes = [IsSchoolStaff]
+
+    def get(self, request):
+        from apps.masters.models import Student
+
+        params = request.query_params
+        session = params.get('session') or current_session_year()
+        students = Student.objects.filter(status='active')
+        if session:
+            students = students.filter(session=session)
+        if params.get('class_name'):
+            students = students.filter(class_name=params['class_name'])
+        if params.get('section'):
+            students = students.filter(section=params['section'])
+        if params.get('search'):
+            search = params['search']
+            students = students.filter(
+                Q(student_name__icontains=search) | Q(admission_no__icontains=search)
+            )
+
+        from_month = params.get('from_month')
+        to_month = params.get('to_month')
+        months = None
+        if from_month in MONTH_COLUMNS and to_month in MONTH_COLUMNS:
+            i, j = MONTH_COLUMNS.index(from_month), MONTH_COLUMNS.index(to_month)
+            if i <= j:
+                months = MONTH_COLUMNS[i:j + 1]
+
+        results = []
+        for student in students.order_by('student_name')[:500]:
+            breakdown = get_student_monthly_breakdown(student, months=months)
+            if not breakdown['fee_structure']:
+                continue
+            resolved_class, resolved_section = resolve_student_class_section(student)
+            results.append({
+                'student_id': student.id,
+                'admission_no': student.admission_no,
+                'student_name': student.student_name,
+                'class_name': resolved_class,
+                'section': resolved_section,
+                'total_due': breakdown['total_due'],
+                'total_discount': breakdown['total_discount'],
+                'total_paid': breakdown['total_paid'],
+                'total_balance': breakdown['total_balance'],
+            })
+
+        return Response(results)
+
+
+class FeeTransactionView(generics.ListAPIView):
+    """Daily fee transaction ledger (FeePaid rows) with student name/class
+    joined in, filterable by date range, mode, and search."""
+    serializer_class = FeePaidSerializer
+    permission_classes = [IsSchoolStaff]
+
+    def get_queryset(self):
+        qs = FeePaid.objects.filter(type='REGULAR').order_by('-date', '-created_at')
+        params = self.request.query_params
+        session = params.get('session') or current_session_year()
+        if session:
+            qs = qs.filter(session=session)
+        if params.get('from_date') and params.get('to_date'):
+            qs = qs.filter(date__range=[params['from_date'], params['to_date']])
+        if params.get('mode'):
+            qs = qs.filter(mode=params['mode'])
+        return qs
+
+    def list(self, request, *args, **kwargs):
+        from apps.masters.models import Student
+
+        qs = self.filter_queryset(self.get_queryset())
+        student_ids = list(qs.values_list('stu_id', flat=True).distinct())
+        students = {s.id: s for s in Student.objects.filter(id__in=student_ids)}
+
+        search = request.query_params.get('search', '').strip().lower()
+        rows = []
+        for p in qs:
+            student = students.get(p.stu_id)
+            if search and student and search not in student.student_name.lower() and search not in student.admission_no.lower():
+                continue
+            resolved_class, resolved_section = resolve_student_class_section(student) if student else ('', '')
+            heads = []
+            for i in range(1, 21):
+                val = getattr(p, f'head{i}', None)
+                if val:
+                    heads.append({'head_number': i, 'amount': float(val)})
+            rows.append({
+                'id': p.id,
+                'rec_no': p.rec_no,
+                'date': p.date,
+                'student_id': p.stu_id,
+                'student_name': student.student_name if student else '—',
+                'admission_no': student.admission_no if student else '',
+                'class_name': resolved_class,
+                'section': resolved_section,
+                'amount': float(p.amount),
+                'mode': p.mode,
+                'month': p.month,
+                'heads': heads,
+                'remarks': p.remarks,
+                'trans_id': p.trans_id,
+            })
+        return Response(rows)

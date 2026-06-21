@@ -9,34 +9,35 @@ from .serializers import (
     ClassMasterSerializer, ClassSectionMasterSerializer
 )
 from utils.permissions import IsSchoolAdmin, IsSchoolStaff
+from utils.session import SessionScopedMixin, current_session_year
 
 
 # ClassMaster views (from fee-backend tables)
-class ClassMasterListView(generics.ListAPIView):
+class ClassMasterListView(SessionScopedMixin, generics.ListAPIView):
     """List classes from class_master table (fee-backend)"""
     serializer_class = ClassMasterSerializer
     permission_classes = [IsSchoolStaff]
-
-    def get_queryset(self):
-        return ClassMaster.objects.prefetch_related('sections').filter(status=True)
+    queryset = ClassMaster.objects.prefetch_related('sections').filter(status=True)
 
 
-class ClassSectionMasterListView(generics.ListAPIView):
+class ClassSectionMasterListView(SessionScopedMixin, generics.ListAPIView):
     """List sections from class_section_master table (fee-backend)"""
     serializer_class = ClassSectionMasterSerializer
     permission_classes = [IsSchoolStaff]
+    queryset = ClassSectionMaster.objects.select_related('class_master').filter(status=True)
 
     def get_queryset(self):
-        qs = ClassSectionMaster.objects.select_related('class_master').filter(status=True)
+        qs = super().get_queryset()
         class_id = self.request.query_params.get('class_id')
         if class_id:
             qs = qs.filter(class_master_id=class_id)
         return qs
 
 
-class StudentListCreateView(generics.ListCreateAPIView):
+class StudentListCreateView(SessionScopedMixin, generics.ListCreateAPIView):
     """List and create students (from fee-backend students table)"""
     permission_classes = [IsSchoolStaff]
+    queryset = Student.objects.all()
 
     def get_serializer_class(self):
         if self.request.method == 'POST':
@@ -45,7 +46,7 @@ class StudentListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         try:
-            qs = Student.objects.all()
+            qs = super().get_queryset()
             params = self.request.query_params
 
             if params.get('class_id'):
@@ -60,9 +61,7 @@ class StudentListCreateView(generics.ListCreateAPIView):
                     Q(father_name__icontains=q) |
                     Q(father_mobile__icontains=q)
                 )
-            if params.get('session'):
-                qs = qs.filter(session=params['session'])
-                
+
             return qs.order_by('-admission_date')
         except Exception as e:
             print(f"ERROR in StudentListCreateView: {str(e)}")
@@ -71,7 +70,7 @@ class StudentListCreateView(generics.ListCreateAPIView):
             raise
 
 
-class StudentDetailView(generics.RetrieveUpdateDestroyAPIView):
+class StudentDetailView(SessionScopedMixin, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = StudentSerializer
     permission_classes = [IsSchoolStaff]
     queryset = Student.objects.all()
@@ -82,12 +81,12 @@ class StudentStrengthView(APIView):
     permission_classes = [IsSchoolStaff]
 
     def get(self, request):
-        session = request.query_params.get('session', '')
-        
+        session = request.query_params.get('session') or current_session_year() or ''
+
         qs = Student.objects.all()
         if session:
             qs = qs.filter(session=session)
-        
+
         data = (
             qs
             .values('class_name')
@@ -100,5 +99,17 @@ class StudentStrengthView(APIView):
             )
             .order_by('class_name')
         )
-        
-        return Response({'results': list(data)})
+
+        # `class_name` above is the raw ClassMaster id grouped from the Student
+        # table — resolve each to its display name via ClassMaster.
+        classes = ClassMaster.objects.filter(session=session) if session else ClassMaster.objects.all()
+        class_names = {str(c.id): c.class_name for c in classes}
+
+        results = []
+        for row in data:
+            raw = row['class_name']
+            row['class_name'] = class_names.get(str(raw), raw)
+            results.append(row)
+        results.sort(key=lambda r: r['class_name'])
+
+        return Response({'results': results})

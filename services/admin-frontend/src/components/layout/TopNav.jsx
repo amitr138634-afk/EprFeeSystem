@@ -66,6 +66,9 @@ const SCHOOL_ADMIN_NAV = [
     items: [
       { label: 'Subject Master', to: '/masters/subjects' },
       { label: 'Period Master',  to: '/masters/periods' },
+      { label: 'Grade Master',   to: '/cce/grade-master' },
+      { label: 'Test Master',    to: '/cce/test-master' },
+      { label: 'Co-Scholastic Subject Master', to: '/cce/co-scholastic-subjects' },
     ],
   },
   {
@@ -86,20 +89,20 @@ const SCHOOL_ADMIN_NAV = [
       {
         title: 'Assign Subject & Test',
         items: [
-          { label: 'Exam Types',        to: '/cce/exam-types' },
-          { label: 'Assign Subjects',   to: '/cce/assign-subjects' },
-          { label: 'Enter Marks',       to: '/cce/enter-marks' },
-          { label: 'Bulk Marks Upload', to: '/cce/bulk-marks' },
-          { label: 'Remarks Master',    to: '/cce/remarks' },
-          { label: 'Signature Master',  to: '/cce/signatures' },
+          { label: 'Assign Subject & Test', to: '/cce/assign-subjects' },
+          { label: 'Marks Feeding',         to: '/cce/enter-marks' },
+          { label: 'Calculation Master',    to: '/academics/calculation' },
+          { label: 'Remark Master',         to: '/cce/remarks' },
+          { label: 'Signature Master',      to: '/cce/signatures' },
+          { label: 'Generate Report Card',  to: '/report-card/generate' },
         ],
       },
       {
         title: 'Subject Allocation',
         items: [
-          { label: 'Class-wise Allocation', to: '/cce/class-allocation' },
-          { label: 'Teacher Allocation',    to: '/cce/teacher-allocation' },
-          { label: 'Student Subjects',      to: '/cce/student-subjects' },
+          { label: 'Assign Subject',          to: '/cce/class-allocation' },
+          { label: 'Add Subject (Student)',   to: '/cce/student-subjects' },
+          { label: 'Multiple Subject Mapping', to: '/cce/multiple-subject-mapping' },
         ],
       },
     ],

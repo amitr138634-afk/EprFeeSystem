@@ -7,21 +7,16 @@ from .serializers import (
     SectionMasterSerializer, SessionMasterSerializer
 )
 from utils.permissions import IsSchoolAdmin
+from utils.session import SessionScopedMixin
 
 
-class ClassMasterListCreateView(generics.ListCreateAPIView):
+class ClassMasterListCreateView(SessionScopedMixin, generics.ListCreateAPIView):
     serializer_class = ClassMasterSerializer
     permission_classes = [IsSchoolAdmin]
-
-    def get_queryset(self):
-        qs = ClassMaster.objects.all()
-        session = self.request.query_params.get('session')
-        if session:
-            qs = qs.filter(session=session)
-        return qs
+    queryset = ClassMaster.objects.all()
 
 
-class ClassMasterDetailView(generics.RetrieveUpdateDestroyAPIView):
+class ClassMasterDetailView(SessionScopedMixin, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = ClassMasterSerializer
     permission_classes = [IsSchoolAdmin]
     queryset = ClassMaster.objects.all()
@@ -75,22 +70,20 @@ class SectionMasterToggleStatusView(APIView):
 
 
 # Class Section Master Views (with class relationship)
-class ClassSectionMasterListCreateView(generics.ListCreateAPIView):
+class ClassSectionMasterListCreateView(SessionScopedMixin, generics.ListCreateAPIView):
     serializer_class = ClassSectionMasterSerializer
     permission_classes = [IsSchoolAdmin]
+    queryset = ClassSectionMaster.objects.select_related('class_master', 'section_master')
 
     def get_queryset(self):
-        qs = ClassSectionMaster.objects.select_related('class_master')
+        qs = super().get_queryset()
         class_id = self.request.query_params.get('class_id')
-        session = self.request.query_params.get('session')
         if class_id:
             qs = qs.filter(class_master_id=class_id)
-        if session:
-            qs = qs.filter(session=session)
         return qs
 
 
-class ClassSectionMasterDetailView(generics.RetrieveUpdateDestroyAPIView):
+class ClassSectionMasterDetailView(SessionScopedMixin, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = ClassSectionMasterSerializer
     permission_classes = [IsSchoolAdmin]
     queryset = ClassSectionMaster.objects.all()
@@ -127,9 +120,33 @@ class SessionMasterListCreateView(generics.ListCreateAPIView):
         return [IsSchoolAdmin()]
     
     def get_queryset(self):
-        # Fee-backend directly uses tenant DB (already configured in .env)
-        # No need for dynamic routing since fee-backend is single-tenant per instance
-        return SessionMaster.objects.all().order_by('-session_year')
+        # Authenticated requests are routed to the active tenant DB by the router.
+        if self.request.user.is_authenticated:
+            return SessionMaster.objects.all().order_by('-session_year')
+
+        # Unauthenticated (login-page dropdown). fee-backend is deployed
+        # single-tenant — the 'default' DB (set in .env) IS this school's
+        # tenant DB, so without a school_code we can just read from it
+        # directly rather than looking up a central school registry that
+        # doesn't exist in this deployment model. ?school_code= is still
+        # honored for cross-tenant lookups (e.g. driven by admin-frontend).
+        import copy
+        from django.conf import settings
+        school_code = self.request.query_params.get('school_code')
+        if not school_code:
+            try:
+                return list(SessionMaster.objects.using('default').all().order_by('-session_year'))
+            except Exception:
+                return SessionMaster.objects.none()
+        db_name = f'school_erp_{school_code}'
+        if db_name not in settings.DATABASES:
+            cfg = copy.deepcopy(settings.DATABASES['default'])
+            cfg['NAME'] = db_name
+            settings.DATABASES[db_name] = cfg
+        try:
+            return list(SessionMaster.objects.using(db_name).all().order_by('-session_year'))
+        except Exception:
+            return SessionMaster.objects.none()
 
 
 class SessionMasterDetailView(generics.RetrieveUpdateDestroyAPIView):

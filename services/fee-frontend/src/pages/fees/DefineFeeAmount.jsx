@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { feeApi, masterApi } from '../../services/api'
+import useAuthStore from '../../store/authStore'
 import toast from 'react-hot-toast'
 import { Save, ChevronRight } from 'lucide-react'
 
@@ -9,10 +10,11 @@ const MONTH_LABELS = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'D
 
 export default function DefineFeeAmount() {
   const queryClient = useQueryClient()
+  const activeSession = useAuthStore(s => s.currentSession?.session_year) || ''
   const [filters, setFilters] = useState({
     class_id: '',
     type: '',
-    session: '2024-25'
+    session: activeSession
   })
   const [showTable, setShowTable] = useState(false)
   const [feeAmounts, setFeeAmounts] = useState([])

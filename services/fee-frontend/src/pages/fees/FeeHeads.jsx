@@ -1,15 +1,17 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { feeApi } from '../../services/api'
+import useAuthStore from '../../store/authStore'
 import toast from 'react-hot-toast'
 import { Plus, Edit2, Trash2, Save, X } from 'lucide-react'
 
 export default function FeeHeads() {
   const queryClient = useQueryClient()
+  const activeSession = useAuthStore(s => s.currentSession?.session_year) || ''
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [formData, setFormData] = useState({
-    session: '2024-25',
+    session: activeSession,
     head1: '', head2: '', head3: '', head4: '', head5: '',
     head6: '', head7: '', head8: '', head9: '', head10: '',
     head11: '', head12: '', head13: '', head14: '', head15: '',
@@ -62,7 +64,7 @@ export default function FeeHeads() {
 
   const resetForm = () => {
     setFormData({
-      session: '2024-25',
+      session: activeSession,
       head1: '', head2: '', head3: '', head4: '', head5: '',
       head6: '', head7: '', head8: '', head9: '', head10: '',
       head11: '', head12: '', head13: '', head14: '', head15: '',

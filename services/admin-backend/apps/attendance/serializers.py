@@ -24,11 +24,19 @@ class BulkAttendanceSerializer(serializers.Serializer):
 class StaffAttendanceSerializer(serializers.ModelSerializer):
     staff_name = serializers.CharField(source='staff.full_name', read_only=True)
     employee_id = serializers.CharField(source='staff.employee_id', read_only=True)
+    designation = serializers.CharField(source='staff.designation.name', read_only=True)
+    department = serializers.CharField(source='staff.department.name', read_only=True)
+    staff_type = serializers.CharField(source='staff.staff_type', read_only=True)
 
     class Meta:
         model = StaffAttendance
         fields = '__all__'
         read_only_fields = ['id', 'created_at']
+
+
+class BulkStaffAttendanceSerializer(serializers.Serializer):
+    date = serializers.DateField()
+    attendance = serializers.ListField(child=serializers.DictField())
 
 
 class HolidaySerializer(serializers.ModelSerializer):

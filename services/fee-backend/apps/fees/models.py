@@ -50,7 +50,8 @@ class FeeAmount(models.Model):
 
 class FeeHead(models.Model):
     # id auto-increment by default
-    session = models.CharField(max_length=20, default='2024-25')
+    # Session is injected from the active session (see SessionScopedMixin); no hardcoded default.
+    session = models.CharField(max_length=20, blank=True)
     head1 = models.CharField(max_length=100, blank=True, null=True)
     head2 = models.CharField(max_length=100, blank=True, null=True)
     head3 = models.CharField(max_length=100, blank=True, null=True)
@@ -129,6 +130,36 @@ class StudentFeeDiscount(models.Model):
 
     class Meta:
         db_table = 'student_fee_discounts'
+
+
+class StudentFeeHeadMonthDiscount(models.Model):
+    """Per-student, per-fee-head, per-month discount amount — granular
+    override used by both the standalone Apply Discount action and the
+    optional discount field inside the Pay Fee flow (same store, so either
+    entry point produces a permanent record)."""
+    MONTH_CHOICES = [
+        ('apr', 'April'), ('may', 'May'), ('jun', 'June'), ('jul', 'July'),
+        ('aug', 'August'), ('sep', 'September'), ('oct', 'October'),
+        ('nov', 'November'), ('dec', 'December'), ('jan', 'January'),
+        ('feb', 'February'), ('mar', 'March'),
+    ]
+
+    student_id = models.IntegerField()
+    head_number = models.IntegerField()  # 1-20, maps to StudentFeeDetail's head{N}_{month}
+    month = models.CharField(max_length=3, choices=MONTH_CHOICES)
+    discount_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    session = models.CharField(max_length=20)
+    remarks = models.CharField(max_length=200, blank=True)
+    created_by = models.IntegerField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'student_fee_head_month_discounts'
+        unique_together = ['student_id', 'head_number', 'month', 'session']
+
+    def __str__(self):
+        return f'Student {self.student_id} - head{self.head_number} - {self.month} - ₹{self.discount_amount}'
 
 
 class FeeReceipt(models.Model):
@@ -354,7 +385,15 @@ class AdmissionQuery(models.Model):
         return f'{self.student_name} - {self.class_name} ({self.session})'
 
 
-class RegistrationFeePaid(models.Model):
+class FeePaid(models.Model):
+    """General fee-payment ledger. For type=EXTRA (registration fee, paid
+    before a student record exists), stu_id holds the admission_query's id
+    and the flat amount goes in `amount`. Other types use head1..head20 for
+    per-head amounts and stu_id holds the real student id."""
+    TYPE_CHOICES = [
+        ('EXTRA', 'Extra/Registration'),
+        ('REGULAR', 'Regular Fee'),
+    ]
     PAYMENT_MODE_CHOICES = [
         ('cash', 'Cash'),
         ('upi', 'UPI'),
@@ -363,43 +402,48 @@ class RegistrationFeePaid(models.Model):
         ('cheque', 'Cheque'),
         ('card', 'Card'),
     ]
-    
-    # Link to admission query
-    admission_query = models.OneToOneField(
-        AdmissionQuery, 
-        on_delete=models.CASCADE, 
-        related_name='registration_payment'
-    )
-    
-    # Student Details (denormalized for quick access)
-    student_name = models.CharField(max_length=200)
-    father_name = models.CharField(max_length=200)
-    class_name = models.CharField(max_length=50)
-    mobile = models.CharField(max_length=15)
-    
-    # Payment Details
-    amount = models.DecimalField(max_digits=10, decimal_places=2, default=100.00)
-    payment_mode = models.CharField(max_length=20, choices=PAYMENT_MODE_CHOICES)
-    payment_date = models.DateField()
-    
-    # Transaction Details
-    transaction_id = models.CharField(max_length=100, blank=True, null=True)
-    bank_name = models.CharField(max_length=100, blank=True, null=True)
-    
-    # Receipt
-    receipt_no = models.CharField(max_length=50, unique=True)
-    
-    # Meta
-    collected_by = models.IntegerField(null=True, blank=True)
+
+    stu_id = models.IntegerField()
+    type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='EXTRA')
+    session = models.CharField(max_length=20)
+    month = models.CharField(max_length=20, blank=True, null=True)
+
+    head1 = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    head2 = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    head3 = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    head4 = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    head5 = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    head6 = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    head7 = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    head8 = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    head9 = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    head10 = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    head11 = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    head12 = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    head13 = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    head14 = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    head15 = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    head16 = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    head17 = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    head18 = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    head19 = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    head20 = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+
+    amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    mode = models.CharField(max_length=20, choices=PAYMENT_MODE_CHOICES)
+    rec_no = models.CharField(max_length=50, unique=True)
+    trans_id = models.CharField(max_length=100, blank=True, null=True)
+    date = models.DateField()
+    remarks = models.CharField(max_length=255, blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
-    remarks = models.TextField(blank=True)
 
     class Meta:
-        db_table = 'registration_fee_paid'
+        db_table = 'fee_paid'
         ordering = ['-created_at']
 
     def __str__(self):
-        return f'{self.student_name} - ₹{self.amount} ({self.receipt_no})'
+        return f'{self.stu_id} - {self.type} - ₹{self.amount} ({self.rec_no})'
 
 
 class StudentFeeDetail(models.Model):
@@ -481,8 +525,216 @@ class StudentFeeDetail(models.Model):
     head5_feb = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     head5_mar = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     
-    # Continue for heads 6-20... (I'll add a helper method instead)
-    
+    # Head 6 - Months
+    head6_apr = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head6_may = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head6_jun = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head6_jul = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head6_aug = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head6_sep = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head6_oct = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head6_nov = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head6_dec = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head6_jan = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head6_feb = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head6_mar = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+
+    # Head 7 - Months
+    head7_apr = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head7_may = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head7_jun = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head7_jul = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head7_aug = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head7_sep = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head7_oct = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head7_nov = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head7_dec = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head7_jan = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head7_feb = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head7_mar = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+
+    # Head 8 - Months
+    head8_apr = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head8_may = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head8_jun = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head8_jul = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head8_aug = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head8_sep = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head8_oct = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head8_nov = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head8_dec = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head8_jan = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head8_feb = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head8_mar = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+
+    # Head 9 - Months
+    head9_apr = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head9_may = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head9_jun = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head9_jul = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head9_aug = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head9_sep = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head9_oct = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head9_nov = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head9_dec = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head9_jan = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head9_feb = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head9_mar = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+
+    # Head 10 - Months
+    head10_apr = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head10_may = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head10_jun = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head10_jul = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head10_aug = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head10_sep = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head10_oct = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head10_nov = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head10_dec = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head10_jan = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head10_feb = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head10_mar = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+
+    # Head 11 - Months
+    head11_apr = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head11_may = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head11_jun = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head11_jul = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head11_aug = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head11_sep = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head11_oct = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head11_nov = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head11_dec = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head11_jan = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head11_feb = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head11_mar = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+
+    # Head 12 - Months
+    head12_apr = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head12_may = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head12_jun = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head12_jul = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head12_aug = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head12_sep = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head12_oct = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head12_nov = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head12_dec = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head12_jan = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head12_feb = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head12_mar = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+
+    # Head 13 - Months
+    head13_apr = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head13_may = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head13_jun = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head13_jul = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head13_aug = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head13_sep = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head13_oct = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head13_nov = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head13_dec = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head13_jan = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head13_feb = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head13_mar = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+
+    # Head 14 - Months
+    head14_apr = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head14_may = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head14_jun = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head14_jul = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head14_aug = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head14_sep = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head14_oct = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head14_nov = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head14_dec = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head14_jan = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head14_feb = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head14_mar = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+
+    # Head 15 - Months
+    head15_apr = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head15_may = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head15_jun = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head15_jul = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head15_aug = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head15_sep = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head15_oct = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head15_nov = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head15_dec = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head15_jan = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head15_feb = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head15_mar = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+
+    # Head 16 - Months
+    head16_apr = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head16_may = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head16_jun = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head16_jul = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head16_aug = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head16_sep = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head16_oct = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head16_nov = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head16_dec = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head16_jan = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head16_feb = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head16_mar = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+
+    # Head 17 - Months
+    head17_apr = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head17_may = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head17_jun = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head17_jul = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head17_aug = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head17_sep = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head17_oct = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head17_nov = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head17_dec = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head17_jan = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head17_feb = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head17_mar = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+
+    # Head 18 - Months
+    head18_apr = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head18_may = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head18_jun = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head18_jul = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head18_aug = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head18_sep = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head18_oct = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head18_nov = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head18_dec = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head18_jan = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head18_feb = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head18_mar = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+
+    # Head 19 - Months
+    head19_apr = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head19_may = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head19_jun = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head19_jul = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head19_aug = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head19_sep = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head19_oct = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head19_nov = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head19_dec = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head19_jan = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head19_feb = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head19_mar = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+
+    # Head 20 - Months
+    head20_apr = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head20_may = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head20_jun = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head20_jul = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head20_aug = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head20_sep = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head20_oct = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head20_nov = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head20_dec = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head20_jan = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head20_feb = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    head20_mar = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

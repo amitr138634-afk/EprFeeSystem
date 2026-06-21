@@ -84,3 +84,59 @@ class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
         if self.request.user.role == 'super_admin':
             return User.objects.all()
         return User.objects.filter(school_id=self.request.user.school_id)
+
+
+# ---------- Active-session management ----------
+
+class SessionListView(APIView):
+    """List all active sessions (for the header/footer session switcher)."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from .serializers import active_sessions_qs
+        data = [{'id': s.id, 'session_year': s.session_year} for s in active_sessions_qs()]
+        return Response(data)
+
+
+class ChangeSessionView(APIView):
+    """Switch the active session without logging out (re-issues the JWT)."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        session_id = request.data.get('session_id')
+        if not session_id:
+            return Response({'detail': 'session_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        from .serializers import resolve_session, build_session_tokens
+        session = resolve_session(session_id)
+        if session is None or str(session.id) != str(session_id):
+            return Response({'detail': 'Session not found or inactive'}, status=status.HTTP_404_NOT_FOUND)
+
+        tokens = build_session_tokens(request.user, session)
+        return Response({
+            'access': tokens['access'],
+            'refresh': tokens['refresh'],
+            'current_session': {'id': session.id, 'session_year': session.session_year},
+        })
+
+
+class GetSchoolCodeView(APIView):
+    """Resolve a user's school code from their username/email (login-page dropdown)."""
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        from django.db.models import Q
+        identifier = request.data.get('email') or request.data.get('username')
+        if not identifier:
+            return Response({'detail': 'email or username is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = User.objects.filter(Q(email__iexact=identifier) | Q(username=identifier)).first()
+        if not user or not user.school_id:
+            return Response({'detail': 'User not found or no school assigned'}, status=status.HTTP_404_NOT_FOUND)
+
+        from apps.schools.models import School
+        try:
+            school = School.objects.get(pk=user.school_id)
+        except School.DoesNotExist:
+            return Response({'detail': 'School not found'}, status=status.HTTP_404_NOT_FOUND)
+        return Response({'school_code': school.code, 'school_name': school.name})

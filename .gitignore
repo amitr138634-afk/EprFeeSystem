@@ -6,6 +6,17 @@ credentials.json
 *.key
 .credentials
 
+# Sensitive files
+login_resp.json
+*_resp.json
+*.token
+**/test_credentials.md
+*credentials*.md
+
+# Root level npm files (each service has its own)
+/package.json
+/package-lock.json
+
 # Python
 __pycache__/
 *.py[cod]

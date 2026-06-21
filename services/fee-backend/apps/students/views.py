@@ -5,19 +5,19 @@ from django.db.models import Q
 from .models import NewAdmission, EnquiryFollowUp, PromotionRecord
 from .serializers import NewAdmissionSerializer, EnquiryFollowUpSerializer, PromotionRecordSerializer
 from utils.permissions import IsSchoolAdmin, IsSchoolStaff
+from utils.session import SessionScopedMixin
 
 
-class NewAdmissionListCreateView(generics.ListCreateAPIView):
+class NewAdmissionListCreateView(SessionScopedMixin, generics.ListCreateAPIView):
     serializer_class = NewAdmissionSerializer
     permission_classes = [IsSchoolStaff]
+    queryset = NewAdmission.objects.all().order_by('-enquiry_date')
 
     def get_queryset(self):
-        qs = NewAdmission.objects.all().order_by('-enquiry_date')
+        qs = super().get_queryset()
         params = self.request.query_params
         if params.get('status'):
             qs = qs.filter(status=params['status'])
-        if params.get('session_year'):
-            qs = qs.filter(session_year=params['session_year'])
         if params.get('search'):
             q = params['search']
             qs = qs.filter(
@@ -27,7 +27,7 @@ class NewAdmissionListCreateView(generics.ListCreateAPIView):
         return qs
 
 
-class NewAdmissionDetailView(generics.RetrieveUpdateDestroyAPIView):
+class NewAdmissionDetailView(SessionScopedMixin, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = NewAdmissionSerializer
     permission_classes = [IsSchoolStaff]
     queryset = NewAdmission.objects.all()

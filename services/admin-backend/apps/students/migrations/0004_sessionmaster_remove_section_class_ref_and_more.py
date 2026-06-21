@@ -35,6 +35,21 @@ class Migration(migrations.Migration):
             name='student',
             options={'managed': False, 'ordering': ['-admission_date']},
         ),
+        # Student.class_ref / Student.section were never removed before Class/Section
+        # got deleted below, leaving a dangling lazy reference ('students.class',
+        # 'students.section') that broke every later `migrate` across the whole
+        # project. Both removals happen here, after the model above is marked
+        # managed=False, so Django's schema editor treats them as no-ops (no DDL
+        # runs against the already-correct live table) for both already-applied
+        # and brand-new tenant databases.
+        migrations.RemoveField(
+            model_name='student',
+            name='class_ref',
+        ),
+        migrations.RemoveField(
+            model_name='student',
+            name='section',
+        ),
         migrations.DeleteModel(
             name='Class',
         ),

@@ -100,6 +100,7 @@ export default function SubjectMaster() {
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Subject Name</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Session</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
             </tr>
@@ -107,7 +108,7 @@ export default function SubjectMaster() {
           <tbody className="bg-white divide-y divide-gray-200">
             {subjects.length === 0 ? (
               <tr>
-                <td colSpan="4" className="px-6 py-12 text-center text-gray-500">
+                <td colSpan="5" className="px-6 py-12 text-center text-gray-500">
                   No subjects found. Click "Add Subject" to create one.
                 </td>
               </tr>
@@ -116,6 +117,7 @@ export default function SubjectMaster() {
                 <tr key={subject.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 text-sm text-gray-900">{subject.id}</td>
                   <td className="px-6 py-4 text-sm font-medium text-gray-900">{subject.name}</td>
+                  <td className="px-6 py-4 text-sm text-gray-500">{subject.session || '—'}</td>
                   <td className="px-6 py-4">
                     <span className={`px-2 py-1 text-xs rounded-full ${
                       subject.status === 'active' 

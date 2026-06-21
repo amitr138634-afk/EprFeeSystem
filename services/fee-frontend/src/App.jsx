@@ -18,6 +18,9 @@ import Uniforms from './pages/fees/Uniforms'
 import VehicleList from './pages/transport/VehicleList'
 import RouteList from './pages/transport/RouteList'
 import TransportStudents from './pages/transport/TransportStudents'
+import RouteMasterPage from './pages/transport/RouteMasterPage'
+import BusMasterPage from './pages/transport/BusMasterPage'
+import StopMasterPage from './pages/transport/StopMasterPage'
 import AdmissionList from './pages/students/AdmissionList'
 import AdmissionQuery from './pages/frontdesk/AdmissionQuery'
 import VisitorList from './pages/frontdesk/VisitorList'
@@ -30,6 +33,8 @@ import SessionMaster from './pages/masters/SessionMaster'
 // Fee Management
 import PayFeeNew from './pages/feemgmt/PayFee'
 import StudentProfile from './pages/feemgmt/StudentProfile'
+import FeeSummary from './pages/feemgmt/FeeSummary'
+import FeeTransaction from './pages/feemgmt/FeeTransaction'
 
 // Placeholder for unbuilt pages
 import { Clock } from 'lucide-react'
@@ -78,6 +83,8 @@ export default function App() {
         {/* ── Fee Management (New) ───────────────────────────────── */}
         <Route path="feemgmt/pay-fee"         element={<PayFeeNew />} />
         <Route path="feemgmt/student-profile/:studentId" element={<StudentProfile />} />
+        <Route path="feemgmt/fee-summary"     element={<FeeSummary />} />
+        <Route path="feemgmt/fee-transaction" element={<FeeTransaction />} />
 
         {/* ── Books ─────────────────────────────────────────────── */}
         <Route path="fees/books/sets"         element={<BookSets />} />
@@ -110,11 +117,11 @@ export default function App() {
 
         {/* ── Transport ─────────────────────────────────────────── */}
         <Route path="transport/vehicles"               element={<VehicleList />} />
-        <Route path="transport/routes"                 element={<RouteList />} />
+        <Route path="transport/routes"                 element={<RouteMasterPage />} />
         <Route path="transport/students"               element={<TransportStudents />} />
         <Route path="transport/students/not-using"     element={<CS title="Students Not Using Transport" />} />
-        <Route path="transport/setup/bus"              element={<CS title="Bus No. Master" />} />
-        <Route path="transport/setup/stop"             element={<CS title="Stop Master" />} />
+        <Route path="transport/setup/bus"              element={<BusMasterPage />} />
+        <Route path="transport/setup/stop"             element={<StopMasterPage />} />
         <Route path="transport/setup/promote"          element={<CS title="Promote Route / Stop" />} />
         <Route path="transport/setup/vehicle-details"  element={<CS title="Vehicle Company / Model" />} />
         <Route path="transport/setup/parts"            element={<CS title="Vehicle Parts" />} />
@@ -168,6 +175,9 @@ export default function App() {
         <Route path="masters/sec-master"              element={<SecMaster />} />
         <Route path="masters/sections"                element={<SectionMaster />} />
         <Route path="masters/sessions"                element={<SessionMaster />} />
+        <Route path="masters/routes"                  element={<RouteMasterPage />} />
+        <Route path="masters/buses"                   element={<BusMasterPage />} />
+        <Route path="masters/stops"                   element={<StopMasterPage />} />
       </Route>
     </Routes>
   )

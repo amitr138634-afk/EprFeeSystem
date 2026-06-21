@@ -1,18 +1,20 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { masterApi } from '../../services/api'
+import useAuthStore from '../../store/authStore'
 import toast from 'react-hot-toast'
 import { Plus, Trash2, Power, X, Save } from 'lucide-react'
 
 export default function SectionMaster() {
+  const activeSession = useAuthStore(s => s.currentSession?.session_year) || ''
   const [showModal, setShowModal] = useState(false)
-  const [filters, setFilters] = useState({ class_id: '', session: '2024-25' })
+  const [filters, setFilters] = useState({ class_id: '', session: activeSession })
   const queryClient = useQueryClient()
 
   const [formData, setFormData] = useState({
     class_master: '',
     sections: [], // Multi-select
-    session: '2024-25',
+    session: activeSession,
     status: true
   })
 
@@ -56,10 +58,9 @@ export default function SectionMaster() {
   const createMutation = useMutation({
     mutationFn: async (data) => {
       const promises = data.sections.map(sectionId => {
-        const section = availableSections.find(s => s.id === parseInt(sectionId))
         return masterApi.createSection({
           class_master: data.class_master,
-          section_name: section.section,
+          section_master: sectionId,
           session: data.session,
           status: data.status
         })
@@ -104,13 +105,13 @@ export default function SectionMaster() {
   })
 
   const openModal = () => {
-    setFormData({ class_master: '', sections: [], session: '2024-25', status: true })
+    setFormData({ class_master: '', sections: [], session: activeSession, status: true })
     setShowModal(true)
   }
 
   const closeModal = () => {
     setShowModal(false)
-    setFormData({ class_master: '', sections: [], session: '2024-25', status: true })
+    setFormData({ class_master: '', sections: [], session: activeSession, status: true })
   }
 
   const handleSubmit = (e) => {
@@ -159,7 +160,7 @@ export default function SectionMaster() {
             </select>
           </div>
           <div className="flex items-end">
-            <button onClick={() => setFilters({ class_id: '', session: '2024-25' })} className="btn-secondary w-full">Clear</button>
+            <button onClick={() => setFilters({ class_id: '', session: activeSession })} className="btn-secondary w-full">Clear</button>
           </div>
         </div>
       </div>

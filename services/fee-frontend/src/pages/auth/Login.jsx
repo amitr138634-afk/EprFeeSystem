@@ -1,14 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
-import toast from 'react-hot-toast'
 import { Eye, EyeOff, ArrowRight, Check, IndianRupee, Calendar } from 'lucide-react'
 import useAuthStore from '../../store/authStore'
-import { authApi } from '../../services/api'
-import api from '../../services/api'
-import { Eye, EyeOff, ArrowRight, Check, IndianRupee } from 'lucide-react'
-import useAuthStore from '../../store/authStore'
-import { authApi } from '../../services/api'
+import api, { authApi } from '../../services/api'
 import { notify } from '../../lib/notify'
 
 const SERVICES = [
@@ -27,7 +22,6 @@ export default function Login() {
   const [loading, setLoading] = useState(false)
   const [sessions, setSessions] = useState([])
   const [selectedSession, setSelectedSession] = useState('')
-  const { register, handleSubmit, formState: { errors } } = useForm()
   const { register, handleSubmit, setError, clearErrors, formState: { errors } } = useForm()
 
   // Surface a message left by the auth redirect (e.g. "session expired").
@@ -39,24 +33,42 @@ export default function Login() {
     }
   }, [])
 
-  // Fetch available sessions on mount
+  // Fetch sessions immediately on mount — no need to type/blur the email
+  // first. The backend defaults to the first registered school when no
+  // school_code is given. handleUsernameBlur refines this once the user's
+  // actual school is known (relevant once there's more than one school);
+  // the real login always re-resolves the session against the authenticated
+  // user's own school regardless, so this default is just a convenience.
   useEffect(() => {
     const fetchSessions = async () => {
       try {
-        const res = await api.get('/masters/sessions/')
+        const res = await api.get('/masters/sessions/', { skipAuth: true })
         const sessionData = Array.isArray(res.data) ? res.data : (res.data.results || [])
         setSessions(sessionData)
-        // Select first (latest) session by default
-        if (sessionData.length > 0) {
-          setSelectedSession(sessionData[0].id)
-        }
+        if (sessionData.length > 0) setSelectedSession(sessionData[0].id)
       } catch (err) {
         console.error('Failed to load sessions:', err)
-        // Don't show error to user on login page, just log it
       }
     }
     fetchSessions()
   }, [])
+
+  // Resolve the user's school from their username/email, then load that school's
+  // sessions. The DB has no tenant context before login, so we route by school_code.
+  const handleUsernameBlur = async (e) => {
+    const identifier = e.target.value.trim()
+    if (!identifier) return
+    try {
+      const { data } = await authApi.getSchoolCode({ email: identifier })
+      const res = await api.get(`/masters/sessions/?school_code=${data.school_code}`, { skipAuth: true })
+      const sessionData = Array.isArray(res.data) ? res.data : (res.data.results || [])
+      setSessions(sessionData)
+      if (sessionData.length > 0) setSelectedSession(sessionData[0].id)
+    } catch (err) {
+      console.error('Failed to load school/sessions:', err)
+      setSessions([])
+    }
+  }
 
   const onSubmit = async (data) => {
     setLoading(true)
@@ -67,14 +79,11 @@ export default function Login() {
         loginData.session_id = selectedSession
       }
       const res = await authApi.login(loginData)
-      
-      // Extract current_session from response
+
+      // Extract current_session from response so it's the active working session.
       const currentSession = res.data.current_session || null
-      
+
       login(res.data.user, { access: res.data.access, refresh: res.data.refresh }, currentSession)
-      toast.success(`Welcome back, ${res.data.user.full_name}!`)
-      const res = await authApi.login(data)
-      login(res.data.user, { access: res.data.access, refresh: res.data.refresh })
       notify.success(`Welcome back, ${res.data.user.full_name}!`, { title: 'Signed in' })
       navigate('/')
     } catch (err) {
@@ -160,6 +169,7 @@ export default function Login() {
                 className="form-input"
                 placeholder="admin@school.com"
                 {...register('email', { required: 'Required' })}
+                onBlur={handleUsernameBlur}
               />
               {errors.email && <p className="form-error">{errors.email.message}</p>}
             </div>

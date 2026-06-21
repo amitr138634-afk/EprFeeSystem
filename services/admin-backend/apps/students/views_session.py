@@ -1,3 +1,4 @@
+import copy
 from rest_framework import generics
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -22,28 +23,35 @@ class SessionMasterListCreateView(generics.ListCreateAPIView):
         if self.request.user.is_authenticated:
             return SessionMaster.objects.all().order_by('-session_year')
         
-        # For unauthenticated (login page), get school_code from query param
+        # For unauthenticated (login page), get school_code from query param.
+        # Before the user identifies their school (e.g. hasn't typed/blurred
+        # the email field yet), default to the first registered school so the
+        # dropdown isn't empty on first paint — the real login always re-resolves
+        # the session against the authenticated user's own school regardless of
+        # what was shown here, so this default is just a convenience, not a
+        # security boundary.
         school_code = self.request.query_params.get('school_code')
         if not school_code:
-            return SessionMaster.objects.none()  # Return empty if no school_code provided
-        
-        # Dynamically add tenant DB if not exists
+            from apps.schools.models import School
+            school = School.objects.order_by('id').first()
+            if not school:
+                return SessionMaster.objects.none()
+            school_code = school.code
+
+        # Dynamically register the tenant DB if not already known. Copy the full
+        # default config (OPTIONS, ATOMIC_REQUESTS, …) and just override NAME — a
+        # partial dict crashes Django's connection setup (e.g. KeyError 'OPTIONS').
         db_name = f'school_erp_{school_code}'
         if db_name not in settings.DATABASES:
-            settings.DATABASES[db_name] = {
-                'ENGINE': 'django.db.backends.postgresql',
-                'NAME': db_name,
-                'USER': settings.DATABASES['default']['USER'],
-                'PASSWORD': settings.DATABASES['default']['PASSWORD'],
-                'HOST': settings.DATABASES['default']['HOST'],
-                'PORT': settings.DATABASES['default']['PORT'],
-            }
-        
+            cfg = copy.deepcopy(settings.DATABASES['default'])
+            cfg['NAME'] = db_name
+            settings.DATABASES[db_name] = cfg
+
         try:
-            # Query from tenant database
-            return SessionMaster.objects.using(db_name).all().order_by('-session_year')
-        except Exception as e:
-            # If tenant DB doesn't exist, return empty
+            # Force evaluation here so a missing DB/table is caught (not during
+            # serialization, which would escape this handler as a 500).
+            return list(SessionMaster.objects.using(db_name).all().order_by('-session_year'))
+        except Exception:
             return SessionMaster.objects.none()
 
 

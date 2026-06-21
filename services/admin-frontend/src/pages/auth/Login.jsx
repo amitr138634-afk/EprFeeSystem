@@ -1,14 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
-import toast from 'react-hot-toast'
 import { Eye, EyeOff, ArrowRight, Check, GraduationCap, Calendar } from 'lucide-react'
 import useAuthStore from '../../store/authStore'
-import { authApi } from '../../services/api'
-import api from '../../services/api'
-import { Eye, EyeOff, ArrowRight, Check, GraduationCap } from 'lucide-react'
-import useAuthStore from '../../store/authStore'
-import { authApi } from '../../services/api'
+import api, { authApi } from '../../services/api'
 import { notify } from '../../lib/notify'
 
 const SERVICES = [
@@ -27,7 +22,6 @@ export default function Login() {
   const [loading, setLoading] = useState(false)
   const [sessions, setSessions] = useState([])
   const [selectedSession, setSelectedSession] = useState('')
-  const { register, handleSubmit, formState: { errors } } = useForm()
   const { register, handleSubmit, setError, clearErrors, formState: { errors } } = useForm()
 
   // Surface a message left by the auth redirect (e.g. "session expired").
@@ -39,51 +33,40 @@ export default function Login() {
     }
   }, [])
 
-  // Fetch available sessions on mount
+  // Fetch sessions immediately on mount — no need to type/blur the email
+  // first. The backend defaults to the first registered school when no
+  // school_code is given. handleUsernameBlur refines this once the user's
+  // actual school is known (relevant once there's more than one school);
+  // the real login always re-resolves the session against the authenticated
+  // user's own school regardless, so this default is just a convenience.
   useEffect(() => {
     const fetchSessions = async () => {
       try {
-        console.log('Fetching sessions from /students/sessions/...')
-        // Get school_code from query param (will be set after username blur)
-        const schoolCode = new URLSearchParams(window.location.search).get('school_code')
-        if (!schoolCode) {
-          console.log('No school_code yet, waiting for username input')
-          return
-        }
-        
-        const res = await api.get(`/students/sessions/?school_code=${schoolCode}`)
-        console.log('Sessions response:', res.data)
+        const res = await api.get('/students/sessions/', { skipAuth: true })
         const sessionData = Array.isArray(res.data) ? res.data : (res.data.results || [])
-        console.log('Parsed sessions:', sessionData)
         setSessions(sessionData)
-        // Select first (latest) session by default
         if (sessionData.length > 0) {
           setSelectedSession(sessionData[0].id)
-          console.log('Selected session:', sessionData[0])
-        } else {
-          console.log('No sessions found')
         }
       } catch (err) {
         console.error('Failed to load sessions:', err)
-        console.error('Error details:', err.response?.data)
-        // Don't show error to user on login page
       }
     }
     fetchSessions()
   }, [])
 
-  // Fetch school code and sessions when username/email is entered
+  // Refine sessions once the username/email resolves to a specific school
   const handleUsernameBlur = async (e) => {
     const identifier = e.target.value.trim()
     if (!identifier) return
     
     try {
-      const res = await api.post('/auth/get-school-code/', { email: identifier })
+      const res = await api.post('/auth/get-school-code/', { email: identifier }, { skipAuth: true })
       const schoolCode = res.data.school_code
       console.log('Got school code:', schoolCode)
-      
+
       // Fetch sessions for this school
-      const sessionsRes = await api.get(`/students/sessions/?school_code=${schoolCode}`)
+      const sessionsRes = await api.get(`/students/sessions/?school_code=${schoolCode}`, { skipAuth: true })
       const sessionData = Array.isArray(sessionsRes.data) ? sessionsRes.data : (sessionsRes.data.results || [])
       setSessions(sessionData)
       
@@ -106,13 +89,10 @@ export default function Login() {
       }
       const res = await authApi.login(loginData)
       login(
-        res.data.user, 
+        res.data.user,
         { access: res.data.access, refresh: res.data.refresh },
         res.data.current_session
       )
-      toast.success(`Welcome back, ${res.data.user.full_name}!`)
-      const res = await authApi.login(data)
-      login(res.data.user, { access: res.data.access, refresh: res.data.refresh })
       notify.success(`Welcome back, ${res.data.user.full_name}!`, { title: 'Signed in' })
       navigate('/')
     } catch (err) {

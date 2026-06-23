@@ -41,6 +41,66 @@ class FeeHeadDetailView(SessionScopedMixin, generics.RetrieveUpdateDestroyAPIVie
     queryset = FeeHead.objects.all()
 
 
+def next_session_string(session_year):
+    """'2026-2027' -> '2027-2028'. Used by Promote Student to compute the
+    upcoming session without requiring it to be picked manually."""
+    if not session_year or '-' not in session_year:
+        return None
+    try:
+        start, end = session_year.split('-')
+        return f'{int(start) + 1}-{int(end) + 1}'
+    except ValueError:
+        return None
+
+
+class PromoteFeeHeadsView(APIView):
+    """Fee Heads tab of Promote Student — compares the current session's
+    Fee Head definitions against the next session's, and clones them
+    forward on demand."""
+    permission_classes = [IsSchoolAdmin]
+
+    def get(self, request):
+        current_session = current_session_year()
+        next_session = next_session_string(current_session)
+        if not current_session or not next_session:
+            return Response({'detail': 'No active session.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        def heads_for(session):
+            row = FeeHead.objects.filter(session=session).order_by('-created_at').first()
+            if not row:
+                return []
+            return [
+                {'position': i, 'name': getattr(row, f'head{i}')}
+                for i in range(1, 21) if getattr(row, f'head{i}')
+            ]
+
+        return Response({
+            'current_session': current_session,
+            'next_session': next_session,
+            'current_heads': heads_for(current_session),
+            'next_heads': heads_for(next_session),
+        })
+
+    def post(self, request):
+        current_session = current_session_year()
+        next_session = next_session_string(current_session)
+        if not current_session or not next_session:
+            return Response({'detail': 'No active session.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        source = FeeHead.objects.filter(session=current_session).order_by('-created_at').first()
+        if not source:
+            return Response({'detail': f'No fee heads defined for {current_session}.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        target = FeeHead.objects.filter(session=next_session).order_by('-created_at').first()
+        if not target:
+            target = FeeHead.objects.create(session=next_session)
+        for i in range(1, 21):
+            setattr(target, f'head{i}', getattr(source, f'head{i}'))
+        target.save()
+
+        return Response({'detail': f'Fee heads cloned from {current_session} to {next_session}.'})
+
+
 class FeeAmountListCreateView(SessionScopedMixin, generics.ListCreateAPIView):
     serializer_class = FeeAmountSerializer
     permission_classes = [IsSchoolAdmin]
@@ -248,19 +308,63 @@ class ClasswiseCollectionReportView(APIView):
 
 
 class FeeDefaulterView(APIView):
+    """Students who have NOT fully paid yet (balance > 0), filterable by
+    class and fee head (same head-matching convention as Fee Summary)."""
     permission_classes = [IsSchoolStaff]
 
     def get(self, request):
+        from apps.masters.models import Student
+
         params = request.query_params
-        session_year = params.get('session_year') or current_session_year() or ''
-        paid_student_ids = FeeReceipt.objects.filter(
-            session_year=session_year, status='paid'
-        ).values_list('student_id', flat=True).distinct()
-        return Response({
-            'paid_count': len(paid_student_ids),
-            'session_year': session_year,
-            'note': 'Cross reference with student list to find defaulters',
-        })
+        session = params.get('session') or current_session_year()
+        students = Student.objects.filter(status='active')
+        if session:
+            students = students.filter(session=session)
+        if params.get('class_name'):
+            students = students.filter(class_name=params['class_name'])
+        if params.get('search'):
+            search = params['search']
+            students = students.filter(
+                Q(student_name__icontains=search) | Q(admission_no__icontains=search)
+            )
+
+        head_name = (params.get('head_name') or '').strip().lower()
+
+        results = []
+        for student in students.order_by('student_name')[:500]:
+            breakdown = get_student_monthly_breakdown(student)
+            if not breakdown['fee_structure']:
+                continue
+
+            if head_name:
+                head = next((h for h in breakdown['fee_structure'] if h['head_name'].strip().lower() == head_name), None)
+                if not head:
+                    continue
+                due, discount, paid, balance = head['annual_total'], head['annual_discount'], head['paid'], head['balance']
+            else:
+                due, discount, paid, balance = (
+                    breakdown['total_due'], breakdown['total_discount'],
+                    breakdown['total_paid'], breakdown['total_balance'],
+                )
+
+            if balance <= 0:
+                continue  # fully paid — not a defaulter
+
+            resolved_class, resolved_section = resolve_student_class_section(student)
+            results.append({
+                'student_id': student.id,
+                'admission_no': student.admission_no,
+                'student_name': student.student_name,
+                'class_name': resolved_class,
+                'section': resolved_section,
+                'father_mobile': student.father_mobile,
+                'total_due': due,
+                'total_discount': discount,
+                'total_paid': paid,
+                'total_balance': balance,
+            })
+
+        return Response(results)
 
 
 class BookSetListCreateView(SessionScopedMixin, generics.ListCreateAPIView):
@@ -818,6 +922,48 @@ class UnapproveAdmissionView(APIView):
 
 
 
+class ChangeAdmissionNoView(APIView):
+    """Change a student's admission number — looked up by their CURRENT
+    admission no., validated that the NEW one isn't already taken by
+    another student before saving."""
+    permission_classes = [IsSchoolStaff]
+
+    def post(self, request):
+        from apps.masters.models import Student
+
+        current_no = (request.data.get('current_admission_no') or '').strip()
+        new_no = (request.data.get('new_admission_no') or '').strip()
+
+        if not current_no or not new_no:
+            return Response({'detail': 'Both current and new admission numbers are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            student = Student.objects.get(admission_no__iexact=current_no)
+        except Student.DoesNotExist:
+            return Response({'detail': f'No student found with admission no. "{current_no}".'}, status=status.HTTP_404_NOT_FOUND)
+
+        if new_no.lower() == current_no.lower():
+            return Response({'detail': 'New admission number must be different from the current one.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if Student.objects.filter(admission_no__iexact=new_no).exclude(id=student.id).exists():
+            return Response({'detail': f'Admission no. "{new_no}" is already assigned to another student.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        student.admission_no = new_no
+        student.save(update_fields=['admission_no'])
+
+        resolved_class, resolved_section = resolve_student_class_section(student)
+        return Response({
+            'detail': f'Admission no. changed from "{current_no}" to "{new_no}".',
+            'student': {
+                'id': student.id,
+                'admission_no': student.admission_no,
+                'student_name': student.student_name,
+                'class_name': resolved_class,
+                'section': resolved_section,
+            },
+        })
+
+
 class StudentSearchView(APIView):
     """Search student by admission number"""
     permission_classes = [IsSchoolStaff]
@@ -834,7 +980,7 @@ class StudentSearchView(APIView):
             )
         
         try:
-            student = Student.objects.get(admission_no=admission_no)
+            student = Student.objects.get(admission_no__iexact=admission_no)
             class_name, section_name = resolve_student_class_section(student)
             return Response({
                 'id': student.id,
@@ -893,6 +1039,182 @@ class StudentsByClassView(APIView):
             })
 
         return Response(data)
+
+
+class PromoteStudentsView(APIView):
+    """Students tab of Promote Student — list students in a source
+    class(+section), then bulk-move ('clone') them into a target class via
+    the Clone button. Updates Student.class_name in place; doesn't touch
+    fee structure (handled separately, e.g. via Complete Detail's
+    class-change flow, if that's needed for promoted students)."""
+    permission_classes = [IsSchoolStaff]
+
+    def get(self, request):
+        from apps.masters.models import Student
+
+        class_name = request.query_params.get('class_name')
+        if not class_name:
+            return Response({'detail': 'class_name is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        session = current_session_year()
+        students = Student.objects.filter(status='active', class_name=class_name)
+        if session:
+            students = students.filter(session=session)
+        section = request.query_params.get('section')
+        if section:
+            students = students.filter(section=section)
+
+        rows = []
+        for s in students.order_by('student_name'):
+            resolved_class, resolved_section = resolve_student_class_section(s)
+            rows.append({
+                'id': s.id,
+                'admission_no': s.admission_no,
+                'student_name': s.student_name,
+                'class_name': resolved_class,
+                'section': resolved_section,
+            })
+        return Response(rows)
+
+    def post(self, request):
+        from apps.masters.models import Student
+
+        class_name = request.data.get('class_name')
+        target_class_name = request.data.get('target_class_name')
+        section = request.data.get('section')
+        target_section = request.data.get('target_section')
+
+        if not class_name or not target_class_name:
+            return Response({'detail': 'class_name and target_class_name are required.'}, status=status.HTTP_400_BAD_REQUEST)
+        if str(class_name) == str(target_class_name) and str(section or '') == str(target_section or ''):
+            return Response({'detail': 'Target class/section must be different from the source.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        session = current_session_year()
+        students = Student.objects.filter(status='active', class_name=class_name)
+        if session:
+            students = students.filter(session=session)
+        if section:
+            students = students.filter(section=section)
+
+        update_fields = {'class_name': target_class_name}
+        if target_section:
+            update_fields['section'] = target_section
+        count = students.update(**update_fields)
+        return Response({'detail': f'{count} student(s) cloned to the new class/section.', 'count': count})
+
+
+class StudentNameSearchView(APIView):
+    """Live search by student name or admission no — powers the Search
+    Student page's autocomplete. Returns up to 20 matches."""
+    permission_classes = [IsSchoolStaff]
+
+    def get(self, request):
+        from apps.masters.models import Student
+
+        q = request.query_params.get('q', '').strip()
+        if not q:
+            return Response([])
+
+        session = request.query_params.get('session') or current_session_year()
+        students = Student.objects.filter(status='active')
+        if session:
+            students = students.filter(session=session)
+        students = students.filter(
+            Q(student_name__icontains=q) | Q(admission_no__icontains=q)
+        ).order_by('student_name')[:20]
+
+        request_scheme = request.build_absolute_uri('/')[:-1]
+        results = []
+        for s in students:
+            resolved_class, resolved_section = resolve_student_class_section(s)
+            results.append({
+                'id': s.id,
+                'admission_no': s.admission_no,
+                'student_name': s.student_name,
+                'class_name': resolved_class,
+                'section': resolved_section,
+                'father_mobile': s.father_mobile,
+                'photo': (request_scheme + s.photo.url) if s.photo else None,
+            })
+        return Response(results)
+
+
+class ClasswiseStrengthView(APIView):
+    """Student count per class+section — strength only, no student list."""
+    permission_classes = [IsSchoolStaff]
+
+    def get(self, request):
+        from apps.masters.models import Student
+
+        session = request.query_params.get('session') or current_session_year()
+        students = Student.objects.filter(status='active')
+        if session:
+            students = students.filter(session=session)
+
+        counts = {}  # (class_name, section) -> count
+        for s in students:
+            resolved_class, resolved_section = resolve_student_class_section(s)
+            key = (resolved_class, resolved_section)
+            counts[key] = counts.get(key, 0) + 1
+
+        rows = sorted(
+            [{'class_name': c, 'section': sec, 'strength': n} for (c, sec), n in counts.items()],
+            key=lambda r: (r['class_name'], r['section'])
+        )
+
+        class_totals = {}
+        for r in rows:
+            class_totals[r['class_name']] = class_totals.get(r['class_name'], 0) + r['strength']
+
+        return Response({
+            'rows': rows,
+            'total_strength': sum(r['strength'] for r in rows),
+            'class_totals': [{'class_name': c, 'strength': n} for c, n in class_totals.items()],
+        })
+
+
+class StudentListReportView(APIView):
+    """Filterable student list — by class, section, session, admission type."""
+    permission_classes = [IsSchoolStaff]
+
+    def get(self, request):
+        from apps.masters.models import Student
+
+        params = request.query_params
+        session = params.get('session') or current_session_year()
+        students = Student.objects.filter(status='active')
+        if session:
+            students = students.filter(session=session)
+        if params.get('class_name'):
+            students = students.filter(class_name=params['class_name'])
+        if params.get('section'):
+            students = students.filter(section=params['section'])
+        if params.get('type'):
+            students = students.filter(type=params['type'])
+        if params.get('search'):
+            search = params['search']
+            students = students.filter(
+                Q(student_name__icontains=search) | Q(admission_no__icontains=search)
+            )
+
+        request_scheme = request.build_absolute_uri('/')[:-1]
+        results = []
+        for s in students.order_by('student_name')[:1000]:
+            resolved_class, resolved_section = resolve_student_class_section(s)
+            results.append({
+                'id': s.id,
+                'admission_no': s.admission_no,
+                'roll_no': s.roll_no,
+                'student_name': s.student_name,
+                'class_name': resolved_class,
+                'section': resolved_section,
+                'session': s.session,
+                'type': s.type,
+                'father_name': s.father_name,
+                'father_mobile': s.father_mobile,
+                'photo': (request_scheme + s.photo.url) if s.photo else None,
+            })
+        return Response(results)
 
 
 MONTH_COLUMNS = ['apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec', 'jan', 'feb', 'mar']
@@ -966,42 +1288,37 @@ def get_class_fee_amounts(class_master, session):
     ).order_by('id')[:20])
 
 
-def find_transport_head_number(class_master, session):
-    """Position (1-based) of the FeeAmount row named 'Transport' for this
-    class+session, or None if not configured. Apply Transport requires this
-    to exist so a head_number slot is reserved in StudentFeeDetail."""
-    fee_amounts = get_class_fee_amounts(class_master, session)
-    for idx, fa in enumerate(fee_amounts, start=1):
-        if (fa.head_name or '').strip().lower() == 'transport':
-            return idx
-    return None
+TRANSPORT_HEAD_NUMBER = -1  # sentinel head_number for the dedicated tp_{month} columns
 
 
 def get_student_monthly_breakdown(student, months=None):
     """Per-head, per-month due/discount/paid/balance for a student.
 
-    due      — from StudentFeeDetail.head{n}_{month}
+    due      — from StudentFeeDetail.head{n}_{month} (Transport uses tp_{month})
     discount — from StudentFeeHeadMonthDiscount (permanent, head+month+student)
-    paid     — sum of REGULAR FeePaid.head{n} for rows recorded against that month
+    paid     — sum of REGULAR FeePaid.head{n} (Transport uses transport_amount)
+               for rows recorded against that month
     balance  — max(0, due - discount - paid)
 
     `months` optionally restricts the per-month rows to a subset (still
     returns annual totals across all 12 regardless, for the profile summary).
+
+    Transport is appended as its own fee_structure entry (head_number=-1)
+    only when the student actually has a transport due somewhere (i.e. Apply
+    Transport has been used) — it doesn't depend on a class fee structure
+    existing at all.
     """
     class_master = get_class_master_for_student(student)
     fee_amounts = get_class_fee_amounts(class_master, student.session)
-
-    if not fee_amounts:
-        return {'fee_structure': [], 'total_due': 0, 'total_discount': 0, 'total_paid': 0, 'total_balance': 0}
-
     detail = StudentFeeDetail.objects.filter(stu_id=student.id, session=student.session).first()
 
     discount_map = {
         (d.head_number, d.month): float(d.discount_amount)
-        for d in StudentFeeHeadMonthDiscount.objects.filter(student_id=student.id, session=student.session)
+        for d in StudentFeeHeadMonthDiscount.objects.filter(stu_id=student.id, session=student.session)
     }
 
-    paid_map = {}  # {(head_number, month): amount}
+    paid_map = {}      # {(head_number, month): amount}
+    tp_paid_map = {}   # {month: amount}
     for p in FeePaid.objects.filter(stu_id=student.id, session=student.session, type='REGULAR'):
         if not p.month:
             continue
@@ -1010,6 +1327,8 @@ def get_student_monthly_breakdown(student, months=None):
             if val:
                 key = (i, p.month)
                 paid_map[key] = paid_map.get(key, 0) + float(val)
+        if p.transport_amount:
+            tp_paid_map[p.month] = tp_paid_map.get(p.month, 0) + float(p.transport_amount)
 
     display_months = months or MONTH_COLUMNS
 
@@ -1044,6 +1363,37 @@ def get_student_monthly_breakdown(student, months=None):
         total_due += annual_due
         total_discount += annual_discount
         total_paid += annual_paid
+
+    # Transport — dedicated tp_{month} columns, independent of fee_amounts.
+    tp_month_rows = []
+    tp_annual_due = tp_annual_discount = tp_annual_paid = 0.0
+    for m in MONTH_COLUMNS:
+        due = float(getattr(detail, f'tp_{m}', 0) or 0) if detail else 0.0
+        discount = discount_map.get((TRANSPORT_HEAD_NUMBER, m), 0.0)
+        paid = tp_paid_map.get(m, 0.0)
+        balance = max(0.0, due - discount - paid)
+        tp_annual_due += due
+        tp_annual_discount += discount
+        tp_annual_paid += paid
+        if m in display_months:
+            tp_month_rows.append({
+                'month': m, 'month_name': MONTH_NAME_MAP[m],
+                'due': due, 'discount': discount, 'paid': paid, 'balance': balance,
+            })
+
+    if tp_annual_due > 0:
+        fee_structure.append({
+            'head_number': TRANSPORT_HEAD_NUMBER,
+            'head_name': 'Transport',
+            'months': tp_month_rows,
+            'annual_total': tp_annual_due,
+            'annual_discount': tp_annual_discount,
+            'paid': tp_annual_paid,
+            'balance': max(0.0, tp_annual_due - tp_annual_discount - tp_annual_paid),
+        })
+        total_due += tp_annual_due
+        total_discount += tp_annual_discount
+        total_paid += tp_annual_paid
 
     return {
         'fee_structure': fee_structure,
@@ -1164,11 +1514,13 @@ class PayStudentFeeView(APIView):
             return Response({'detail': 'No fee structure assigned to this student.'}, status=status.HTTP_400_BAD_REQUEST)
 
         balance_lookup = {}   # (head_no, month) -> balance
+        due_lookup = {}       # (head_no, month) -> due (pre-discount), for the discount audit record
         head_name_by_number = {}
         for head in breakdown['fee_structure']:
             head_name_by_number[head['head_number']] = head['head_name']
             for m in head['months']:
                 balance_lookup[(head['head_number'], m['month'])] = m['balance']
+                due_lookup[(head['head_number'], m['month'])] = m['due']
 
         heads_by_month = request.data.get('heads_by_month') or {}
         discounts_by_month = request.data.get('discounts_by_month') or {}
@@ -1179,7 +1531,8 @@ class PayStudentFeeView(APIView):
             return Response({'detail': 'mode and date are required.'}, status=status.HTTP_400_BAD_REQUEST)
 
         errors = []
-        per_month_heads = {}     # month -> {f'head{n}': amount}
+        per_month_heads = {}     # month -> {f'head{n}': amount}  (real heads only, excludes Transport)
+        per_month_transport = {} # month -> amount
         per_month_discounts = {} # month -> {head_no: discount}
         total_amount = 0.0
 
@@ -1219,7 +1572,10 @@ class PayStudentFeeView(APIView):
                     name = head_name_by_number.get(head_no, f'head{head_no}')
                     errors.append(f"{name} ({MONTH_NAME_MAP[month]}): amount ₹{amt:.2f} exceeds balance due ₹{balance:.2f}")
                     continue
-                per_month_heads.setdefault(month, {})[f'head{head_no}'] = amt
+                if head_no == TRANSPORT_HEAD_NUMBER:
+                    per_month_transport[month] = per_month_transport.get(month, 0) + amt
+                else:
+                    per_month_heads.setdefault(month, {})[f'head{head_no}'] = amt
                 month_total += amt
             total_amount += month_total
 
@@ -1233,13 +1589,18 @@ class PayStudentFeeView(APIView):
         for month, head_map in per_month_discounts.items():
             for head_no, disc in head_map.items():
                 StudentFeeHeadMonthDiscount.objects.update_or_create(
-                    student_id=student.id, head_number=head_no, month=month, session=student.session,
-                    defaults={'discount_amount': disc, 'created_by': request.user.id, 'remarks': remarks},
+                    stu_id=student.id, head_number=head_no, month=month, session=student.session,
+                    defaults={
+                        'discount_amount': disc, 'actual_amount': due_lookup.get((head_no, month), 0),
+                        'created_by': request.user.id, 'remarks': remarks,
+                    },
                 )
 
         created_payments = []
-        for month, head_amounts in per_month_heads.items():
-            month_amount = sum(head_amounts.values())
+        for month in sorted(set(per_month_heads) | set(per_month_transport), key=MONTH_COLUMNS.index):
+            head_amounts = per_month_heads.get(month, {})
+            transport_amt = per_month_transport.get(month, 0)
+            month_amount = sum(head_amounts.values()) + transport_amt
             if month_amount <= 0:
                 continue
             rec_no = f"FEE{timezone.now().strftime('%Y%m%d')}{str(uuid.uuid4().int)[:6]}"
@@ -1249,6 +1610,7 @@ class PayStudentFeeView(APIView):
                 session=student.session,
                 month=month,
                 amount=month_amount,
+                transport_amount=transport_amt or None,
                 mode=mode,
                 date=date,
                 trans_id=request.data.get('trans_id', ''),
@@ -1347,7 +1709,7 @@ class StudentFeeHeadMonthDiscountView(generics.ListAPIView):
         qs = StudentFeeHeadMonthDiscount.objects.all()
         student_id = self.request.query_params.get('student_id')
         if student_id:
-            qs = qs.filter(student_id=student_id)
+            qs = qs.filter(stu_id=student_id)
         return qs.order_by('head_number', 'month')
 
     def post(self, request):
@@ -1365,11 +1727,13 @@ class StudentFeeHeadMonthDiscountView(generics.ListAPIView):
 
         breakdown = get_student_monthly_breakdown(student)
         balance_lookup = {}
+        due_lookup = {}
         head_name_by_number = {}
         for head in breakdown['fee_structure']:
             head_name_by_number[head['head_number']] = head['head_name']
             for m in head['months']:
                 balance_lookup[(head['head_number'], m['month'])] = m['balance']
+                due_lookup[(head['head_number'], m['month'])] = m['due']
 
         errors = []
         saved = []
@@ -1397,8 +1761,11 @@ class StudentFeeHeadMonthDiscountView(generics.ListAPIView):
         results = []
         for head_no, month, disc, remarks in saved:
             obj, _ = StudentFeeHeadMonthDiscount.objects.update_or_create(
-                student_id=student.id, head_number=head_no, month=month, session=student.session,
-                defaults={'discount_amount': disc, 'remarks': remarks, 'created_by': request.user.id},
+                stu_id=student.id, head_number=head_no, month=month, session=student.session,
+                defaults={
+                    'discount_amount': disc, 'actual_amount': due_lookup.get((head_no, month), 0),
+                    'remarks': remarks, 'created_by': request.user.id,
+                },
             )
             results.append(obj)
 
@@ -1408,9 +1775,185 @@ class StudentFeeHeadMonthDiscountView(generics.ListAPIView):
         )
 
 
+class StudentCertificateView(APIView):
+    """Certificate Upload tab on the student profile.
+
+    GET    -> every ACTIVE CertificateMaster entry, each annotated with the
+              student's uploaded file (if any) — exactly as many upload
+              slots as are defined in the master, no more.
+    POST   multipart {certificate_id, file} -> upserts (re-upload replaces
+              the existing file for that certificate type).
+    DELETE ?certificate_id= -> removes the uploaded file for that type."""
+    permission_classes = [IsSchoolStaff]
+
+    def get(self, request, student_id):
+        from apps.masters.models import Student, CertificateMaster, StudentCertificate
+
+        if not Student.objects.filter(id=student_id).exists():
+            return Response({'detail': 'Student not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        request_scheme = request.build_absolute_uri('/')[:-1]
+        uploaded = {
+            c.certificate_id: c
+            for c in StudentCertificate.objects.filter(stu_id=student_id)
+        }
+
+        rows = []
+        for cert in CertificateMaster.objects.filter(status=True).order_by('certificate_name'):
+            uploaded_cert = uploaded.get(cert.id)
+            rows.append({
+                'certificate_id': cert.id,
+                'certificate_name': cert.certificate_name,
+                'uploaded': bool(uploaded_cert),
+                'file_url': (request_scheme + uploaded_cert.file.url) if uploaded_cert else None,
+                'uploaded_at': uploaded_cert.uploaded_at if uploaded_cert else None,
+            })
+
+        return Response(rows)
+
+    def post(self, request, student_id):
+        from apps.masters.models import Student, CertificateMaster, StudentCertificate
+
+        try:
+            student = Student.objects.get(id=student_id)
+        except Student.DoesNotExist:
+            return Response({'detail': 'Student not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        certificate_id = request.data.get('certificate_id')
+        file = request.data.get('file')
+        if not certificate_id or not file:
+            return Response({'detail': 'certificate_id and file are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            cert = CertificateMaster.objects.get(id=certificate_id, status=True)
+        except CertificateMaster.DoesNotExist:
+            return Response({'detail': 'Invalid or inactive certificate type.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        record, _ = StudentCertificate.objects.update_or_create(
+            stu_id=student.id, certificate_id=cert.id,
+            defaults={'certificate_name': cert.certificate_name, 'file': file, 'uploaded_by': request.user.id},
+        )
+
+        request_scheme = request.build_absolute_uri('/')[:-1]
+        return Response({
+            'detail': f'{cert.certificate_name} uploaded successfully.',
+            'certificate_id': cert.id,
+            'certificate_name': cert.certificate_name,
+            'uploaded': True,
+            'file_url': request_scheme + record.file.url,
+            'uploaded_at': record.uploaded_at,
+        }, status=status.HTTP_201_CREATED)
+
+    def delete(self, request, student_id):
+        from apps.masters.models import StudentCertificate
+
+        certificate_id = request.query_params.get('certificate_id')
+        if not certificate_id:
+            return Response({'detail': 'certificate_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        deleted, _ = StudentCertificate.objects.filter(stu_id=student_id, certificate_id=certificate_id).delete()
+        if not deleted:
+            return Response({'detail': 'No uploaded certificate found for this type.'}, status=status.HTTP_404_NOT_FOUND)
+
+        return Response({'detail': 'Certificate removed.'})
+
+
 class FeeSummaryView(APIView):
     """Student-wise, month-wise due/paid/balance summary, filterable by
-    class, section, session, and month range."""
+    class, section, session, month range, fee head, and new/old student type.
+
+    When `head_name` is given, the due/discount/paid/balance shown are for
+    that one fee head only (students whose class doesn't have that head are
+    excluded) instead of the student's overall total."""
+    permission_classes = [IsSchoolStaff]
+
+    def get(self, request):
+        from apps.masters.models import Student
+
+        params = request.query_params
+        session = params.get('session') or current_session_year()
+        students = Student.objects.filter(status='active')
+        if session:
+            students = students.filter(session=session)
+        if params.get('class_name'):
+            students = students.filter(class_name=params['class_name'])
+        if params.get('section'):
+            students = students.filter(section=params['section'])
+        if params.get('type'):
+            students = students.filter(type=params['type'])
+        if params.get('search'):
+            search = params['search']
+            students = students.filter(
+                Q(student_name__icontains=search) | Q(admission_no__icontains=search)
+            )
+
+        from_month = params.get('from_month')
+        to_month = params.get('to_month')
+        months = None
+        if from_month in MONTH_COLUMNS and to_month in MONTH_COLUMNS:
+            i, j = MONTH_COLUMNS.index(from_month), MONTH_COLUMNS.index(to_month)
+            if i <= j:
+                months = MONTH_COLUMNS[i:j + 1]
+
+        head_name = (params.get('head_name') or '').strip().lower()
+
+        results = []
+        for student in students.order_by('student_name')[:500]:
+            breakdown = get_student_monthly_breakdown(student, months=months)
+            if not breakdown['fee_structure']:
+                continue
+
+            if head_name:
+                head = next((h for h in breakdown['fee_structure'] if h['head_name'].strip().lower() == head_name), None)
+                if not head:
+                    continue
+                due, discount, paid, balance = head['annual_total'], head['annual_discount'], head['paid'], head['balance']
+            else:
+                due, discount, paid, balance = (
+                    breakdown['total_due'], breakdown['total_discount'],
+                    breakdown['total_paid'], breakdown['total_balance'],
+                )
+
+            resolved_class, resolved_section = resolve_student_class_section(student)
+            results.append({
+                'student_id': student.id,
+                'admission_no': student.admission_no,
+                'student_name': student.student_name,
+                'class_name': resolved_class,
+                'section': resolved_section,
+                'type': student.type,
+                'total_due': due,
+                'total_discount': discount,
+                'total_paid': paid,
+                'total_balance': balance,
+            })
+
+        return Response(results)
+
+
+class FeeHeadNamesView(APIView):
+    """Distinct fee head names available for the current session — powers
+    the Head filter dropdown on Fee Summary. Always includes 'Transport'
+    since it's a dedicated column independent of any class's FeeAmount rows."""
+    permission_classes = [IsSchoolStaff]
+
+    def get(self, request):
+        session = request.query_params.get('session') or current_session_year()
+        qs = FeeAmount.objects.filter(type='new')
+        if session:
+            qs = qs.filter(session=session)
+        names = sorted({n for n in qs.values_list('head_name', flat=True).distinct() if n})
+        if 'Transport' not in names:
+            names.append('Transport')
+        return Response(names)
+
+
+class PeriodDefaulterView(APIView):
+    """Fee Management's Defaulter Report — students who haven't fully paid
+    for a chosen month range (defaults to the full year if no range given),
+    filterable by class and section. Unlike the Fee Reports > Fee
+    Defaulters page (annual total, class+head filters), this checks the
+    balance for ONLY the selected month range."""
     permission_classes = [IsSchoolStaff]
 
     def get(self, request):
@@ -1444,6 +1987,18 @@ class FeeSummaryView(APIView):
             breakdown = get_student_monthly_breakdown(student, months=months)
             if not breakdown['fee_structure']:
                 continue
+
+            due = discount = paid = balance = 0.0
+            for head in breakdown['fee_structure']:
+                for m in head['months']:
+                    due += m['due']
+                    discount += m['discount']
+                    paid += m['paid']
+                    balance += m['balance']
+
+            if balance <= 0:
+                continue  # fully paid for this period — not a defaulter
+
             resolved_class, resolved_section = resolve_student_class_section(student)
             results.append({
                 'student_id': student.id,
@@ -1451,23 +2006,25 @@ class FeeSummaryView(APIView):
                 'student_name': student.student_name,
                 'class_name': resolved_class,
                 'section': resolved_section,
-                'total_due': breakdown['total_due'],
-                'total_discount': breakdown['total_discount'],
-                'total_paid': breakdown['total_paid'],
-                'total_balance': breakdown['total_balance'],
+                'father_mobile': student.father_mobile,
+                'total_due': due,
+                'total_discount': discount,
+                'total_paid': paid,
+                'total_balance': balance,
             })
 
         return Response(results)
 
 
 class FeeTransactionView(generics.ListAPIView):
-    """Daily fee transaction ledger (FeePaid rows) with student name/class
-    joined in, filterable by date range, mode, and search."""
+    """Daily Transaction Report — FeePaid ledger rows (both REGULAR fee
+    payments and EXTRA/registration payments) with student name/class joined
+    in, filterable by date range, mode, and type."""
     serializer_class = FeePaidSerializer
     permission_classes = [IsSchoolStaff]
 
     def get_queryset(self):
-        qs = FeePaid.objects.filter(type='REGULAR').order_by('-date', '-created_at')
+        qs = FeePaid.objects.all().order_by('-date', '-created_at')
         params = self.request.query_params
         session = params.get('session') or current_session_year()
         if session:
@@ -1476,37 +2033,54 @@ class FeeTransactionView(generics.ListAPIView):
             qs = qs.filter(date__range=[params['from_date'], params['to_date']])
         if params.get('mode'):
             qs = qs.filter(mode=params['mode'])
+        if params.get('type'):
+            qs = qs.filter(type=params['type'])
         return qs
 
     def list(self, request, *args, **kwargs):
         from apps.masters.models import Student
 
         qs = self.filter_queryset(self.get_queryset())
-        student_ids = list(qs.values_list('stu_id', flat=True).distinct())
+        student_ids = list(qs.filter(type='REGULAR').values_list('stu_id', flat=True).distinct())
+        query_ids = list(qs.filter(type='EXTRA').values_list('stu_id', flat=True).distinct())
         students = {s.id: s for s in Student.objects.filter(id__in=student_ids)}
+        queries = {q.id: q for q in AdmissionQuery.objects.filter(id__in=query_ids)}
 
         search = request.query_params.get('search', '').strip().lower()
         rows = []
         for p in qs:
-            student = students.get(p.stu_id)
-            if search and student and search not in student.student_name.lower() and search not in student.admission_no.lower():
+            if p.type == 'REGULAR':
+                student = students.get(p.stu_id)
+                name = student.student_name if student else '—'
+                admission_no = student.admission_no if student else ''
+                resolved_class, resolved_section = resolve_student_class_section(student) if student else ('', '')
+            else:  # EXTRA — stu_id holds the admission_query's id, not a real student id
+                query = queries.get(p.stu_id)
+                name = query.student_name if query else '—'
+                admission_no = ''
+                resolved_class, resolved_section = (query.class_name, '') if query else ('', '')
+
+            if search and search not in name.lower() and search not in admission_no.lower():
                 continue
-            resolved_class, resolved_section = resolve_student_class_section(student) if student else ('', '')
+
             heads = []
             for i in range(1, 21):
                 val = getattr(p, f'head{i}', None)
                 if val:
                     heads.append({'head_number': i, 'amount': float(val)})
+
             rows.append({
                 'id': p.id,
                 'rec_no': p.rec_no,
                 'date': p.date,
+                'type': p.type,
                 'student_id': p.stu_id,
-                'student_name': student.student_name if student else '—',
-                'admission_no': student.admission_no if student else '',
+                'student_name': name,
+                'admission_no': admission_no,
                 'class_name': resolved_class,
                 'section': resolved_section,
                 'amount': float(p.amount),
+                'transport_amount': float(p.transport_amount) if p.transport_amount else 0,
                 'mode': p.mode,
                 'month': p.month,
                 'heads': heads,
@@ -1514,3 +2088,186 @@ class FeeTransactionView(generics.ListAPIView):
                 'trans_id': p.trans_id,
             })
         return Response(rows)
+
+
+# Mirrors FeeStructure.due_date's existing "day of month fee is due"
+# convention (default=10) — used to derive a due date from the month-wise
+# StudentFeeDetail columns (head{n}_apr..head{n}_mar) for aging/overdue
+# calculations, since no per-invoice due-date field exists anywhere on the
+# live fee tables.
+DUE_DAY_OF_MONTH = 10
+MONTH_TO_CALENDAR = {  # abbr -> (calendar month number, year offset from session start year)
+    'apr': (4, 0), 'may': (5, 0), 'jun': (6, 0), 'jul': (7, 0),
+    'aug': (8, 0), 'sep': (9, 0), 'oct': (10, 0), 'nov': (11, 0),
+    'dec': (12, 0), 'jan': (1, 1), 'feb': (2, 1), 'mar': (3, 1),
+}
+
+
+class FeeDashboardView(APIView):
+    """Single aggregated payload for the Fee Management dashboard — built
+    entirely from existing tables (Student, StudentFeeDetail via
+    get_student_monthly_breakdown, FeePaid, FeeReceipt). No new
+    models/fields; session-scoped automatically via current_session_year()."""
+    permission_classes = [IsSchoolStaff]
+
+    def get(self, request):
+        from apps.masters.models import Student
+        from datetime import date
+
+        session = request.query_params.get('session') or current_session_year()
+        today = timezone.now().date()
+
+        session_start_year = None
+        if session and '-' in session:
+            try:
+                session_start_year = int(session.split('-')[0])
+            except ValueError:
+                pass
+
+        def due_date_for(month_abbr):
+            if not session_start_year:
+                return None
+            cal_month, yr_off = MONTH_TO_CALENDAR[month_abbr]
+            return date(session_start_year + yr_off, cal_month, DUE_DAY_OF_MONTH)
+
+        students_qs = Student.objects.filter(status='active')
+        if session:
+            students_qs = students_qs.filter(session=session)
+        students = list(students_qs.order_by('student_name')[:500])
+
+        total_due = total_discount = total_paid = 0.0
+        month_expected = {m: 0.0 for m in MONTH_COLUMNS}
+        aging_buckets = {'0-30': 0.0, '31-60': 0.0, '61-90': 0.0, '90+': 0.0}
+        class_expected, class_collected = {}, {}
+        recovery_rows = []
+
+        for student in students:
+            breakdown = get_student_monthly_breakdown(student)
+            if not breakdown['fee_structure']:
+                continue
+
+            total_due += breakdown['total_due']
+            total_discount += breakdown['total_discount']
+            total_paid += breakdown['total_paid']
+
+            resolved_class, resolved_section = resolve_student_class_section(student)
+            net_due = breakdown['total_due'] - breakdown['total_discount']
+            class_expected[resolved_class] = class_expected.get(resolved_class, 0) + net_due
+            class_collected[resolved_class] = class_collected.get(resolved_class, 0) + breakdown['total_paid']
+
+            for head in breakdown['fee_structure']:
+                for m in head['months']:
+                    month_expected[m['month']] += (m['due'] - m['discount'])
+
+            balance = breakdown['total_balance']
+            if balance <= 0:
+                continue
+
+            oldest_overdue_days = 0
+            for head in breakdown['fee_structure']:
+                for m in head['months']:
+                    if m['balance'] <= 0:
+                        continue
+                    dd = due_date_for(m['month'])
+                    if not dd or dd > today:
+                        continue
+                    age = (today - dd).days
+                    oldest_overdue_days = max(oldest_overdue_days, age)
+                    if age <= 30:
+                        aging_buckets['0-30'] += m['balance']
+                    elif age <= 60:
+                        aging_buckets['31-60'] += m['balance']
+                    elif age <= 90:
+                        aging_buckets['61-90'] += m['balance']
+                    else:
+                        aging_buckets['90+'] += m['balance']
+
+            if oldest_overdue_days >= 60 or balance >= 10000:
+                priority = 'HIGH'
+            elif oldest_overdue_days >= 30 or balance >= 5000:
+                priority = 'MEDIUM'
+            else:
+                priority = 'LOW'
+
+            recovery_rows.append({
+                'student_id': student.id,
+                'student_name': student.student_name,
+                'class_name': resolved_class,
+                'section': resolved_section,
+                'father_mobile': student.father_mobile,
+                'amount_due': round(balance, 2),
+                'overdue_days': oldest_overdue_days,
+                'priority': priority,
+            })
+
+        recovery_rows.sort(key=lambda r: r['amount_due'], reverse=True)
+
+        # Today's / this month's collection — REGULAR ledger only, same
+        # definition as Total Collected, for direct comparability.
+        regular_qs = FeePaid.objects.filter(type='REGULAR')
+        if session:
+            regular_qs = regular_qs.filter(session=session)
+        today_collection = regular_qs.filter(date=today).aggregate(total=Sum('amount'))['total'] or 0
+        month_collection = regular_qs.filter(date__year=today.year, date__month=today.month).aggregate(total=Sum('amount'))['total'] or 0
+
+        month_collected = {m: 0.0 for m in MONTH_COLUMNS}
+        for p in regular_qs.filter(month__in=MONTH_COLUMNS).values('month').annotate(total=Sum('amount')):
+            month_collected[p['month']] = float(p['total'] or 0)
+
+        monthly_trend = [
+            {'month': MONTH_NAME_MAP[m], 'expected': round(month_expected[m], 2), 'collected': round(month_collected[m], 2)}
+            for m in MONTH_COLUMNS
+            if month_expected[m] > 0 or month_collected[m] > 0
+        ]
+
+        class_collection = []
+        for cname in sorted(class_expected.keys()):
+            expected = class_expected[cname]
+            collected = class_collected.get(cname, 0)
+            class_collection.append({
+                'class_name': cname,
+                'expected': round(expected, 2),
+                'collected': round(collected, 2),
+                'pct': round((collected / expected) * 100, 1) if expected > 0 else 0,
+            })
+
+        payment_mode_today = list(
+            regular_qs.filter(date=today).values('mode').annotate(count=Count('id'), amount=Sum('amount'))
+        )
+
+        receipts_qs = FeeReceipt.objects.all()
+        if session:
+            receipts_qs = receipts_qs.filter(session_year=session)
+        from datetime import timedelta
+        tomorrow = today + timedelta(days=1)
+        cheque_alerts = {
+            'due_tomorrow': receipts_qs.filter(status='pending', payment_mode='cheque', cheque_date=tomorrow).count(),
+            'bounced': receipts_qs.filter(status='bounced').count(),
+            'pending_clearance': receipts_qs.filter(status='pending', payment_mode='cheque').count(),
+            'post_dated': receipts_qs.filter(status='pending', payment_mode='cheque', cheque_date__gt=today).count(),
+        }
+
+        total_expected = total_due
+        total_collected = total_paid
+        total_pending = max(0.0, total_due - total_discount - total_paid)
+        overdue_30plus = aging_buckets['31-60'] + aging_buckets['61-90'] + aging_buckets['90+']
+
+        return Response({
+            'stats': {
+                'total_expected': round(total_expected, 2),
+                'total_collected': round(total_collected, 2),
+                'total_pending': round(total_pending, 2),
+                'total_defaulters': len(recovery_rows),
+                'today_collection': round(float(today_collection), 2),
+                'month_collection': round(float(month_collection), 2),
+                'overdue_30plus': round(overdue_30plus, 2),
+                'bounced_cheques': cheque_alerts['bounced'],
+            },
+            'monthly_trend': monthly_trend,
+            'due_aging': {k: round(v, 2) for k, v in aging_buckets.items()},
+            'class_collection': class_collection,
+            'payment_mode_today': payment_mode_today,
+            'cheque_alerts': cheque_alerts,
+            'recovery_list': recovery_rows,
+            'top_defaulters': recovery_rows[:10],
+        })

@@ -4,6 +4,7 @@ from . import views
 urlpatterns = [
     path('heads/', views.FeeHeadListCreateView.as_view(), name='fee-head-list'),
     path('heads/<int:pk>/', views.FeeHeadDetailView.as_view(), name='fee-head-detail'),
+    path('heads/promote/', views.PromoteFeeHeadsView.as_view(), name='fee-heads-promote'),
     path('amounts/', views.FeeAmountListCreateView.as_view(), name='fee-amount-list'),
     path('amounts/<int:pk>/', views.FeeAmountDetailView.as_view(), name='fee-amount-detail'),
     path('amounts/bulk-update/', views.FeeAmountBulkUpdateView.as_view(), name='fee-amount-bulk-update'),
@@ -43,16 +44,25 @@ urlpatterns = [
     path('admission-queries/<int:pk>/unapprove/', views.UnapproveAdmissionView.as_view(), name='unapprove-admission'),
     
     # Student Management
+    path('students/change-admission-no/', views.ChangeAdmissionNoView.as_view(), name='change-admission-no'),
     path('students/search/', views.StudentSearchView.as_view(), name='student-search'),
+    path('students/search-by-name/', views.StudentNameSearchView.as_view(), name='student-search-by-name'),
+    path('students/strength/', views.ClasswiseStrengthView.as_view(), name='student-strength'),
+    path('students/list/', views.StudentListReportView.as_view(), name='student-list-report'),
     path('students/<int:student_id>/profile/', views.StudentProfileView.as_view(), name='student-profile'),
     path('students/by-class/', views.StudentsByClassView.as_view(), name='students-by-class'),
+    path('students/promote-class/', views.PromoteStudentsView.as_view(), name='promote-students'),
     path('students/<int:student_id>/pay/', views.PayStudentFeeView.as_view(), name='student-pay-fee'),
     path('students/<int:student_id>/detail/', views.StudentDetailUpdateView.as_view(), name='student-detail-update'),
+    path('students/<int:student_id>/certificates/', views.StudentCertificateView.as_view(), name='student-certificates'),
 
     # Per-head, per-month discounts
     path('discounts/monthly/', views.StudentFeeHeadMonthDiscountView.as_view(), name='student-monthly-discount'),
 
     # Fee Management — Summary & Transactions
     path('summary/', views.FeeSummaryView.as_view(), name='fee-summary'),
+    path('summary/head-names/', views.FeeHeadNamesView.as_view(), name='fee-summary-head-names'),
     path('transactions/', views.FeeTransactionView.as_view(), name='fee-transactions'),
+    path('defaulters/period/', views.PeriodDefaulterView.as_view(), name='fee-defaulters-period'),
+    path('dashboard/', views.FeeDashboardView.as_view(), name='fee-dashboard'),
 ]

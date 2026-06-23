@@ -3,12 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, User, Phone, Mail, Calendar, Hash, BookOpen,
   Wallet, Receipt, CheckCircle2, AlertTriangle, FileEdit, Bus, Percent, Hash as RollIcon,
+  FileText,
 } from 'lucide-react'
 import { feeApi } from '../../services/api'
-import PayFeeModal from './PayFeeModal'
-import CompleteDetailModal from './CompleteDetailModal'
-import ApplyTransportModal from './ApplyTransportModal'
-import ApplyDiscountModal from './ApplyDiscountModal'
 
 const MONTH_NAMES = {
   apr: 'Apr', may: 'May', jun: 'Jun', jul: 'Jul', aug: 'Aug', sep: 'Sep',
@@ -21,7 +18,6 @@ export default function StudentProfile() {
   const [student, setStudent] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [activeModal, setActiveModal] = useState(null) // 'pay' | 'detail' | 'transport' | 'discount'
 
   const fetchProfile = async () => {
     setLoading(true)
@@ -58,8 +54,7 @@ export default function StudentProfile() {
   }
 
   const paidPct = student.total_due > 0 ? Math.min(100, (student.total_paid / student.total_due) * 100) : 0
-  const closeModal = () => setActiveModal(null)
-  const onModalSuccess = () => { closeModal(); fetchProfile() }
+  const goTo = (sub) => navigate(`/feemgmt/student-profile/${studentId}/${sub}`)
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
@@ -67,9 +62,9 @@ export default function StudentProfile() {
         <ArrowLeft size={16} /> Back to Search
       </button>
 
-      {/* Profile card */}
+      {/* Card 1: Identity */}
       <div className="card p-6">
-        <div className="flex flex-col sm:flex-row gap-5">
+        <div className="flex flex-col sm:flex-row gap-5 items-start">
           {student.photo ? (
             <img src={student.photo} alt={student.student_name} className="w-20 h-20 rounded-full object-cover flex-shrink-0 border border-gray-200" />
           ) : (
@@ -84,33 +79,48 @@ export default function StudentProfile() {
               <span className={student.status === 'active' ? 'badge-green' : 'badge-gray'}>{student.status.toUpperCase()}</span>
               {student.transport && <span className="badge-blue flex items-center gap-1"><Bus size={11} /> Transport</span>}
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 mt-3 text-sm text-gray-600">
-              <div className="flex items-center gap-2"><BookOpen size={14} className="text-gray-400" /> Class {student.class_name} - {student.section}</div>
-              <div className="flex items-center gap-2"><RollIcon size={14} className="text-gray-400" /> Roll No: {student.roll_no || '—'}</div>
-              <div className="flex items-center gap-2"><Hash size={14} className="text-gray-400" /> Session: {student.session}</div>
-              <div className="flex items-center gap-2"><User size={14} className="text-gray-400" /> Father: {student.father_name}</div>
-              <div className="flex items-center gap-2"><User size={14} className="text-gray-400" /> Mother: {student.mother_name}</div>
-              <div className="flex items-center gap-2"><Phone size={14} className="text-gray-400" /> {student.father_mobile}</div>
-              {student.father_email && <div className="flex items-center gap-2"><Mail size={14} className="text-gray-400" /> {student.father_email}</div>}
-              <div className="flex items-center gap-2"><Calendar size={14} className="text-gray-400" /> DOB: {new Date(student.date_of_birth).toLocaleDateString('en-IN')}</div>
-            </div>
-
-            {/* Action bar */}
-            <div className="flex flex-wrap gap-2 mt-4">
-              <button onClick={() => setActiveModal('pay')} disabled={student.total_balance <= 0} className="btn-primary btn-sm">
-                <Wallet size={14} /> Pay Fee
-              </button>
-              <button onClick={() => setActiveModal('detail')} className="btn-secondary btn-sm">
-                <FileEdit size={14} /> Complete Detail
-              </button>
-              <button onClick={() => setActiveModal('transport')} className="btn-secondary btn-sm">
-                <Bus size={14} /> Apply Transport
-              </button>
-              <button onClick={() => setActiveModal('discount')} disabled={!student.has_fee_structure} className="btn-secondary btn-sm">
-                <Percent size={14} /> Apply Discount
-              </button>
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-1 mt-2 text-sm text-gray-600">
+              <div className="flex items-center gap-1.5"><BookOpen size={14} className="text-gray-400" /> Class {student.class_name} - {student.section}</div>
+              <div className="flex items-center gap-1.5"><RollIcon size={14} className="text-gray-400" /> Roll No: {student.roll_no || '—'}</div>
+              <div className="flex items-center gap-1.5"><Hash size={14} className="text-gray-400" /> Session: {student.session}</div>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Card 2: Contact details */}
+      <div className="card p-6">
+        <h2 className="section-title">Contact Details</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-sm text-gray-600">
+          <div className="flex items-center gap-2"><User size={14} className="text-gray-400" /> Father: {student.father_name}</div>
+          <div className="flex items-center gap-2"><User size={14} className="text-gray-400" /> Mother: {student.mother_name}</div>
+          <div className="flex items-center gap-2"><Phone size={14} className="text-gray-400" /> {student.father_mobile}</div>
+          {student.father_email && <div className="flex items-center gap-2"><Mail size={14} className="text-gray-400" /> {student.father_email}</div>}
+          {student.date_of_birth && (
+            <div className="flex items-center gap-2"><Calendar size={14} className="text-gray-400" /> DOB: {new Date(student.date_of_birth).toLocaleDateString('en-IN')}</div>
+          )}
+        </div>
+      </div>
+
+      {/* Card 3: Actions */}
+      <div className="card p-6">
+        <h2 className="section-title">Actions</h2>
+        <div className="flex flex-wrap gap-3">
+          <button onClick={() => goTo('pay-fee')} disabled={student.total_balance <= 0} className="btn-primary btn-sm">
+            <Wallet size={14} /> Pay Fee
+          </button>
+          <button onClick={() => goTo('complete-detail')} className="btn-secondary btn-sm">
+            <FileEdit size={14} /> Complete Detail
+          </button>
+          <button onClick={() => goTo('apply-transport')} className="btn-secondary btn-sm">
+            <Bus size={14} /> Apply Transport
+          </button>
+          <button onClick={() => goTo('apply-discount')} disabled={!student.has_fee_structure} className="btn-secondary btn-sm">
+            <Percent size={14} /> Apply Discount
+          </button>
+          <button onClick={() => goTo('certificates')} className="btn-secondary btn-sm">
+            <FileText size={14} /> Certificate Upload
+          </button>
         </div>
       </div>
 
@@ -156,39 +166,41 @@ export default function StudentProfile() {
             </div>
 
             {/* Yearly month-wise breakdown */}
-            <div className="table-container mb-4 overflow-x-auto">
-              <table className="data-table text-sm">
-                <thead>
-                  <tr>
-                    <th className="sticky left-0 bg-white z-10">Fee Head</th>
-                    {Object.values(MONTH_NAMES).map(m => <th key={m} className="text-center">{m}</th>)}
-                    <th className="text-right">Annual</th>
-                    <th className="text-right">Balance</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {student.fee_structure.map(head => (
-                    <tr key={head.head_number}>
-                      <td className="font-medium text-gray-900 sticky left-0 bg-white">{head.head_name}</td>
-                      {head.months.map(m => (
-                        <td key={m.month} className="text-center text-xs">
-                          {m.due > 0 ? (
-                            <span className={m.balance > 0 ? 'text-gray-700' : 'text-green-600'}>₹{m.due.toLocaleString('en-IN')}</span>
-                          ) : <span className="text-gray-300">—</span>}
-                          {m.discount > 0 && <div className="text-amber-600">-₹{m.discount.toLocaleString('en-IN')}</div>}
-                        </td>
-                      ))}
-                      <td className="text-right font-medium">₹{head.annual_total.toLocaleString('en-IN')}</td>
-                      <td className={`text-right font-semibold ${head.balance > 0 ? 'text-red-600' : 'text-green-600'}`}>₹{head.balance.toLocaleString('en-IN')}</td>
+            <div className="card p-0 overflow-hidden mb-4">
+              <div className="table-container overflow-x-auto">
+                <table className="data-table text-sm">
+                  <thead>
+                    <tr>
+                      <th className="sticky left-0 bg-white z-10">Fee Head</th>
+                      {Object.values(MONTH_NAMES).map(m => <th key={m} className="text-center">{m}</th>)}
+                      <th className="text-right">Annual</th>
+                      <th className="text-right">Balance</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {student.fee_structure.map(head => (
+                      <tr key={head.head_number}>
+                        <td className="font-medium text-gray-900 sticky left-0 bg-white">{head.head_name}</td>
+                        {head.months.map(m => (
+                          <td key={m.month} className="text-center text-xs">
+                            {m.due > 0 ? (
+                              <span className={m.balance > 0 ? 'text-gray-700' : 'text-green-600'}>₹{m.due.toLocaleString('en-IN')}</span>
+                            ) : <span className="text-gray-300">—</span>}
+                            {m.discount > 0 && <div className="text-amber-600">-₹{m.discount.toLocaleString('en-IN')}</div>}
+                          </td>
+                        ))}
+                        <td className="text-right font-medium">₹{head.annual_total.toLocaleString('en-IN')}</td>
+                        <td className={`text-right font-semibold ${head.balance > 0 ? 'text-red-600' : 'text-green-600'}`}>₹{head.balance.toLocaleString('en-IN')}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
 
             <div className="flex justify-center">
               <button
-                onClick={() => setActiveModal('pay')}
+                onClick={() => goTo('pay-fee')}
                 disabled={student.total_balance <= 0}
                 className="btn-primary btn-lg"
               >
@@ -205,39 +217,36 @@ export default function StudentProfile() {
         {student.payment_history.length === 0 ? (
           <div className="card p-6 text-center text-sm text-gray-500">No fee payments recorded yet.</div>
         ) : (
-          <div className="table-container">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Receipt No</th>
-                  <th>Date</th>
-                  <th>Month</th>
-                  <th className="text-right">Amount</th>
-                  <th>Mode</th>
-                  <th>Remarks</th>
-                </tr>
-              </thead>
-              <tbody>
-                {student.payment_history.map((p) => (
-                  <tr key={p.id}>
-                    <td className="font-medium text-gray-900">{p.rec_no}</td>
-                    <td>{new Date(p.date).toLocaleDateString('en-IN')}</td>
-                    <td>{MONTH_NAMES[p.month] || '—'}</td>
-                    <td className="text-right font-semibold text-green-600">₹{parseFloat(p.amount).toLocaleString('en-IN')}</td>
-                    <td><span className="badge-gray uppercase">{p.mode}</span></td>
-                    <td className="text-gray-500 text-xs max-w-xs truncate">{p.remarks || '—'}</td>
+          <div className="card p-0 overflow-hidden">
+            <div className="table-container">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Receipt No</th>
+                    <th>Date</th>
+                    <th>Month</th>
+                    <th className="text-right">Amount</th>
+                    <th>Mode</th>
+                    <th>Remarks</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {student.payment_history.map((p) => (
+                    <tr key={p.id}>
+                      <td className="font-medium text-gray-900">{p.rec_no}</td>
+                      <td>{new Date(p.date).toLocaleDateString('en-IN')}</td>
+                      <td>{MONTH_NAMES[p.month] || '—'}</td>
+                      <td className="text-right font-semibold text-green-600">₹{parseFloat(p.amount).toLocaleString('en-IN')}</td>
+                      <td><span className="badge-gray uppercase">{p.mode}</span></td>
+                      <td className="text-gray-500 text-xs max-w-xs truncate">{p.remarks || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>
-
-      {activeModal === 'pay' && <PayFeeModal student={student} onClose={closeModal} onSuccess={onModalSuccess} />}
-      {activeModal === 'detail' && <CompleteDetailModal student={student} onClose={closeModal} onSuccess={onModalSuccess} />}
-      {activeModal === 'transport' && <ApplyTransportModal student={student} onClose={closeModal} onSuccess={onModalSuccess} />}
-      {activeModal === 'discount' && <ApplyDiscountModal student={student} onClose={closeModal} onSuccess={onModalSuccess} />}
     </div>
   )
 }

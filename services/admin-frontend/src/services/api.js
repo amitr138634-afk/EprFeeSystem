@@ -197,7 +197,7 @@ export const academicsApi = {
   createSubjectAllocation:(data) => api.post('/academics/subject-allocations/', data),
   updateSubjectAllocation:(id, data) => api.patch(`/academics/subject-allocations/${id}/`, data),
   deleteSubjectAllocation:(id) => api.delete(`/academics/subject-allocations/${id}/`),
-  remarks:               () => api.get('/academics/remarks/'),
+  remarks:               (params) => api.get('/academics/remarks/', { params }),
   createRemark:          (data) => api.post('/academics/remarks/', data),
   updateRemark:          (id, data) => api.patch(`/academics/remarks/${id}/`, data),
   deleteRemark:          (id) => api.delete(`/academics/remarks/${id}/`),
@@ -239,6 +239,13 @@ export const academicsApi = {
   marksFeedingSubjects:  (params) => api.get('/academics/marks-feeding/subjects/', { params }),
   marksFeedingGrid:      (params) => api.get('/academics/marks-feeding/grid/', { params }),
   saveMarksFeedingGrid:  (data) => api.post('/academics/marks-feeding/grid/', data),
+  marksFeedingRemarks:   (params) => api.get('/academics/marks-feeding/remarks/', { params }),
+  /* CCE — Signature Master */
+  signatures:            (params) => api.get('/academics/signatures/', { params }),
+  createSignature:       (formData) => api.post('/academics/signatures/', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  updateSignature:       (id, formData) => api.patch(`/academics/signatures/${id}/`, formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  deleteSignature:       (id) => api.delete(`/academics/signatures/${id}/`),
+  classTeacherLookup:    (params) => api.get('/academics/signatures/class-teacher-lookup/', { params }),
 }
 
 export const adminApi = {

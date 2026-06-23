@@ -5,7 +5,9 @@ import { GraduationCap } from 'lucide-react'
  * Accepts a `report` row (from /academics/report-card/ or /academics/results/),
  * the `exam` meta, class/section labels, and an optional grade scale legend.
  */
-export default function ReportCardDoc({ report, exam, className, sectionName, gradeScale = [], schoolName = 'Shyam ERP School' }) {
+const SIGNATURE_LABELS = { class_teacher: 'Class Teacher', examination_ic: 'Examination IC', principal: 'Principal' }
+
+export default function ReportCardDoc({ report, exam, className, sectionName, gradeScale = [], signatures = [], schoolName = 'Shyam ERP School' }) {
   if (!report) return null
   const cls = report.class_name || className || ''
   const sec = report.section_name || sectionName || ''
@@ -93,10 +95,21 @@ export default function ReportCardDoc({ report, exam, className, sectionName, gr
         </div>
       )}
 
-      {/* Signatures */}
+      {/* Signatures — printed from Signature Master; falls back to a plain
+          label if no active signature has been configured for this slot. */}
       <div className="flex justify-between pt-8 text-xs text-gray-500">
-        <span className="border-t border-gray-400 pt-1 px-6">Class Teacher</span>
-        <span className="border-t border-gray-400 pt-1 px-6">Principal</span>
+        {['class_teacher', 'examination_ic', 'principal'].map(designation => {
+          const sig = signatures.find(s => s.designation === designation)
+          const imgSrc = sig?.processed_image || sig?.original_image
+          return (
+            <div key={designation} className="flex flex-col items-center">
+              <div className="h-12 flex items-end justify-center mb-1">
+                {imgSrc && <img src={imgSrc} alt={SIGNATURE_LABELS[designation]} className="h-12 object-contain" />}
+              </div>
+              <span className="border-t border-gray-400 pt-1 px-6">{SIGNATURE_LABELS[designation]}</span>
+            </div>
+          )
+        })}
       </div>
     </div>
   )

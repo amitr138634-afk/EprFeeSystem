@@ -69,6 +69,8 @@ export const feeApi = {
   createHead:         (data) => api.post('/fees/heads/', data),
   updateHead:         (id, data) => api.patch(`/fees/heads/${id}/`, data),
   deleteHead:         (id) => api.delete(`/fees/heads/${id}/`),
+  promoteFeeHeads:    () => api.get('/fees/heads/promote/'),
+  cloneFeeHeads:      () => api.post('/fees/heads/promote/'),
   /* Fee amounts */
   amounts:            (params) => api.get('/fees/amounts/', { params }),
   createAmount:       (data) => api.post('/fees/amounts/', data),
@@ -97,6 +99,8 @@ export const feeApi = {
   monthlyReport:      (params) => api.get('/fees/reports/monthly/', { params }),
   classwiseReport:    (params) => api.get('/fees/reports/classwise/', { params }),
   defaulters:         (params) => api.get('/fees/defaulters/', { params }),
+  periodDefaulters:   (params) => api.get('/fees/defaulters/period/', { params }),
+  feeDashboard:       (params) => api.get('/fees/dashboard/', { params }),
   /* Books */
   bookSets:           (params) => api.get('/fees/books/sets/', { params }),
   createBookSet:      (data) => api.post('/fees/books/sets/', data),
@@ -135,8 +139,14 @@ export const feeApi = {
   /* Masters - for convenience */
   classes:            (params) => api.get('/masters/classes/', { params }),
   /* Students */
-  searchStudent:      (admissionNo) => api.get(`/fees/students/search/?admission_no=${admissionNo}`),
+  changeAdmissionNo:  (data) => api.post('/fees/students/change-admission-no/', data),
+  searchStudent:      (admissionNo, config) => api.get(`/fees/students/search/?admission_no=${admissionNo}`, config),
+  searchStudentsByName: (params) => api.get('/fees/students/search-by-name/', { params }),
+  classwiseStrength:  (params) => api.get('/fees/students/strength/', { params }),
+  studentListReport:  (params) => api.get('/fees/students/list/', { params }),
   getStudentsByClass: (className) => api.get(`/fees/students/by-class/?class_name=${className}`),
+  promoteClassStudents: (params) => api.get('/fees/students/promote-class/', { params }),
+  cloneClassStudents:   (data) => api.post('/fees/students/promote-class/', data),
   getStudentProfile:  (studentId) => api.get(`/fees/students/${studentId}/profile/`),
   payStudentFee:      (studentId, data) => api.post(`/fees/students/${studentId}/pay/`, data),
   getClasses:         () => api.get('/masters/classes/'),
@@ -146,12 +156,19 @@ export const feeApi = {
   /* Per-head, per-month discounts */
   monthlyDiscounts:    (studentId) => api.get('/fees/discounts/monthly/', { params: { student_id: studentId } }),
   saveMonthlyDiscounts:(studentId, discounts) => api.post('/fees/discounts/monthly/', { student_id: studentId, discounts }),
+  /* Certificate Upload */
+  getStudentCertificates:    (studentId) => api.get(`/fees/students/${studentId}/certificates/`),
+  uploadStudentCertificate:  (studentId, formData) => api.post(`/fees/students/${studentId}/certificates/`, formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  deleteStudentCertificate:  (studentId, certificateId) => api.delete(`/fees/students/${studentId}/certificates/`, { params: { certificate_id: certificateId } }),
   /* Fee Management — Summary & Transactions */
   feeSummary:         (params) => api.get('/fees/summary/', { params }),
+  feeSummaryHeadNames:(params) => api.get('/fees/summary/head-names/', { params }),
   feeTransactions:    (params) => api.get('/fees/transactions/', { params }),
 }
 
 export const masterApi = {
+  /* Session Master */
+  sessions:           () => api.get('/masters/sessions/'),
   /* Class Master */
   classes:            (params) => api.get('/masters/classes/', { params }),
   createClass:        (data) => api.post('/masters/classes/', data),
@@ -170,6 +187,51 @@ export const masterApi = {
   updateSection:      (id, data) => api.patch(`/masters/sections/${id}/`, data),
   deleteSection:      (id) => api.delete(`/masters/sections/${id}/`),
   toggleSectionStatus:(id) => api.post(`/masters/sections/${id}/toggle-status/`),
+  /* House Master */
+  getHouseMaster:       () => api.get('/masters/houses/'),
+  createHouseMaster:    (data) => api.post('/masters/houses/', data),
+  updateHouseMaster:    (id, data) => api.patch(`/masters/houses/${id}/`, data),
+  deleteHouseMaster:    (id) => api.delete(`/masters/houses/${id}/`),
+  toggleHouseMasterStatus: (id) => api.post(`/masters/houses/${id}/toggle-status/`),
+  /* Blood Group Master */
+  getBloodGroupMaster:       () => api.get('/masters/blood-groups/'),
+  createBloodGroupMaster:    (data) => api.post('/masters/blood-groups/', data),
+  updateBloodGroupMaster:    (id, data) => api.patch(`/masters/blood-groups/${id}/`, data),
+  deleteBloodGroupMaster:    (id) => api.delete(`/masters/blood-groups/${id}/`),
+  toggleBloodGroupMasterStatus: (id) => api.post(`/masters/blood-groups/${id}/toggle-status/`),
+  /* School Info Master (singleton) */
+  getSchoolInfo:      () => api.get('/masters/school-info/'),
+  updateSchoolInfo:   (data, config) => api.patch('/masters/school-info/', data, config),
+  /* Category Master */
+  getCategoryMaster:       () => api.get('/masters/categories/'),
+  createCategoryMaster:    (data) => api.post('/masters/categories/', data),
+  updateCategoryMaster:    (id, data) => api.patch(`/masters/categories/${id}/`, data),
+  deleteCategoryMaster:    (id) => api.delete(`/masters/categories/${id}/`),
+  toggleCategoryMasterStatus: (id) => api.post(`/masters/categories/${id}/toggle-status/`),
+  /* Religion Master */
+  getReligionMaster:       () => api.get('/masters/religions/'),
+  createReligionMaster:    (data) => api.post('/masters/religions/', data),
+  updateReligionMaster:    (id, data) => api.patch(`/masters/religions/${id}/`, data),
+  deleteReligionMaster:    (id) => api.delete(`/masters/religions/${id}/`),
+  toggleReligionMasterStatus: (id) => api.post(`/masters/religions/${id}/toggle-status/`),
+  /* Caste Master */
+  getCasteMaster:       () => api.get('/masters/castes/'),
+  createCasteMaster:    (data) => api.post('/masters/castes/', data),
+  updateCasteMaster:    (id, data) => api.patch(`/masters/castes/${id}/`, data),
+  deleteCasteMaster:    (id) => api.delete(`/masters/castes/${id}/`),
+  toggleCasteMasterStatus: (id) => api.post(`/masters/castes/${id}/toggle-status/`),
+  /* Attendance Master */
+  getAttendanceMaster:       () => api.get('/masters/attendance-status/'),
+  createAttendanceMaster:    (data) => api.post('/masters/attendance-status/', data),
+  updateAttendanceMaster:    (id, data) => api.patch(`/masters/attendance-status/${id}/`, data),
+  deleteAttendanceMaster:    (id) => api.delete(`/masters/attendance-status/${id}/`),
+  toggleAttendanceMasterStatus: (id) => api.post(`/masters/attendance-status/${id}/toggle-status/`),
+  /* Certificate Master */
+  getCertificateMaster:       () => api.get('/masters/certificates/'),
+  createCertificateMaster:    (data) => api.post('/masters/certificates/', data),
+  updateCertificateMaster:    (id, data) => api.patch(`/masters/certificates/${id}/`, data),
+  deleteCertificateMaster:    (id) => api.delete(`/masters/certificates/${id}/`),
+  toggleCertificateMasterStatus: (id) => api.post(`/masters/certificates/${id}/toggle-status/`),
 }
 
 export const transportApi = {
@@ -191,6 +253,8 @@ export const transportApi = {
   removeStudentTransport:(id) => api.delete(`/transport/students/${id}/`),
   attendance:           (params) => api.get('/transport/attendance/', { params }),
   markAttendance:       (data) => api.post('/transport/attendance/', data),
+  routeAttendance:      (params) => api.get('/transport/attendance/route/', { params }),
+  saveRouteAttendance:  (data) => api.post('/transport/attendance/route/', data),
   buswiseCount:         (params) => api.get('/transport/buswise-count/', { params }),
   parts:                (params) => api.get('/transport/parts/', { params }),
   createPart:           (data) => api.post('/transport/parts/', data),
@@ -198,6 +262,11 @@ export const transportApi = {
   deletePart:           (id) => api.delete(`/transport/parts/${id}/`),
   dashboard:            () => api.get('/transport/dashboard/'),
   applyStudentTransport:(data) => api.post('/transport/apply/', data),
+  promoteTransport:     () => api.get('/transport/promote/'),
+  cloneTransport:       () => api.post('/transport/promote/'),
+  /* Reports */
+  usingTransportReport:   (params) => api.get('/transport/reports/using/', { params }),
+  notUsingTransportReport:(params) => api.get('/transport/reports/not-using/', { params }),
 }
 
 export const admissionApi = {
@@ -230,4 +299,10 @@ export const frontdeskApi = {
   addHrmLetter:           (data) => api.post('/frontdesk/hrm-letters/', data),
   updateHrmLetter:        (id, data) => api.patch(`/frontdesk/hrm-letters/${id}/`, data),
   enquiryDashboard:       () => api.get('/frontdesk/enquiry-dashboard/'),
+  /* HRM Candidates (Add HRM / List HRM / Add Letter) */
+  hrmCandidates:          (params) => api.get('/frontdesk/hrm-candidates/', { params }),
+  getHrmCandidate:        (id) => api.get(`/frontdesk/hrm-candidates/${id}/`),
+  addHrmCandidate:        (formData) => api.post('/frontdesk/hrm-candidates/', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  updateHrmCandidate:     (id, data) => api.patch(`/frontdesk/hrm-candidates/${id}/`, data),
+  deleteHrmCandidate:     (id) => api.delete(`/frontdesk/hrm-candidates/${id}/`),
 }

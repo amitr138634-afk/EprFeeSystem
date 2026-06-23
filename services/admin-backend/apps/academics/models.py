@@ -78,21 +78,88 @@ class Marks(models.Model):
         unique_together = ['student', 'subject', 'exam_type']
 
 
-class RemarkMaster(models.Model):
+class Remark(models.Model):
+    """Predefined remark for a class, mapped to one or more of that class's
+    sections. Shown as a per-student dropdown column in Marks Feeding; the
+    dropdown only lists remarks whose class + section match the grid's
+    selected class + section.
+
+    section_ids holds comma-separated ClassSectionMaster ids (e.g. "10,12")
+    rather than a join table — a remark only ever maps to a handful of
+    sections within one class, so this is simpler than a separate table."""
     text = models.CharField(max_length=200)
-    category = models.CharField(max_length=50, blank=True)
+    class_ref = models.ForeignKey(ClassMaster, on_delete=models.CASCADE, related_name='remarks')
+    section_ids = models.CharField(max_length=255, blank=True)
+    is_active = models.BooleanField(default=True)
+    display_order = models.IntegerField(default=0)
+    session = models.CharField(max_length=10)
 
     class Meta:
-        db_table = 'remark_masters'
+        db_table = 'remarks'
+        ordering = ['display_order', 'id']
+
+    def __str__(self):
+        return self.text
+
+    def section_id_list(self):
+        return [int(x) for x in self.section_ids.split(',') if x.strip().isdigit()]
+
+
+class StudentRemark(models.Model):
+    """A teacher's remark selection for one student, per test. One remark per
+    (student, test, session). remark null = no selection / cleared."""
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='student_remarks')
+    test = models.ForeignKey('Test', on_delete=models.CASCADE)
+    remark = models.ForeignKey(Remark, on_delete=models.SET_NULL, null=True, blank=True)
+    class_ref = models.ForeignKey(ClassMaster, on_delete=models.SET_NULL, null=True, blank=True)
+    section = models.ForeignKey(ClassSectionMaster, on_delete=models.SET_NULL, null=True, blank=True)
+    session = models.CharField(max_length=10, blank=True)
+    entered_by = models.IntegerField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'student_remarks'
+        unique_together = ['student', 'test', 'session']
 
 
 class SignatureMaster(models.Model):
-    title = models.CharField(max_length=100)
-    signature = models.ImageField(upload_to='signatures/')
+    """Signature images printed on report cards. Principal and Examination IC
+    are school-level singletons (one per session); Class Teacher has one
+    record per class+section (one per session). The class teacher's name is
+    never stored here — it's resolved live from Staff.class_assigned/
+    section_assigned via the SignatureSerializer, so reassigning the class
+    teacher updates report cards automatically without re-saving this row."""
+    DESIGNATION_CHOICES = [
+        ('principal', 'Principal'),
+        ('examination_ic', 'Examination IC'),
+        ('class_teacher', 'Class Teacher'),
+    ]
+    designation = models.CharField(max_length=20, choices=DESIGNATION_CHOICES)
+    class_ref = models.ForeignKey(ClassMaster, on_delete=models.CASCADE, null=True, blank=True, related_name='signatures')
+    section = models.ForeignKey(ClassSectionMaster, on_delete=models.CASCADE, null=True, blank=True, related_name='signatures')
+    original_image = models.ImageField(upload_to='signatures/original/')
+    processed_image = models.ImageField(upload_to='signatures/processed/', null=True, blank=True)
     is_active = models.BooleanField(default=True)
+    session = models.CharField(max_length=10)
 
     class Meta:
         db_table = 'signature_masters'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['designation', 'session'],
+                condition=models.Q(designation__in=['principal', 'examination_ic']),
+                name='unique_singleton_signature_per_session',
+            ),
+            models.UniqueConstraint(
+                fields=['designation', 'class_ref', 'section', 'session'],
+                condition=models.Q(designation='class_teacher'),
+                name='unique_class_teacher_signature_per_session',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.get_designation_display()} ({self.session})'
 
 
 class GradeScale(models.Model):

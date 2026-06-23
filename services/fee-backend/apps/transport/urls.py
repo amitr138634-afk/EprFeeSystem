@@ -13,9 +13,17 @@ urlpatterns = [
     path('students/', views.StudentTransportListCreateView.as_view(), name='transport-student-list'),
     path('students/<int:pk>/', views.StudentTransportDetailView.as_view(), name='transport-student-detail'),
     path('attendance/', views.TransportAttendanceView.as_view(), name='transport-attendance'),
+    path('attendance/route/', views.RouteAttendanceView.as_view(), name='transport-route-attendance'),
     path('buswise-count/', views.BuswiseStudentCountView.as_view(), name='buswise-count'),
     path('parts/', views.VehiclePartListCreateView.as_view(), name='vehicle-part-list'),
     path('parts/<int:pk>/', views.VehiclePartDetailView.as_view(), name='vehicle-part-detail'),
     path('dashboard/', views.TransportDashboardView.as_view(), name='transport-dashboard'),
     path('apply/', views.ApplyTransportView.as_view(), name='transport-apply'),
+
+    # Reports
+    path('reports/using/', views.TransportStudentListView.as_view(), name='transport-using-report'),
+    path('reports/not-using/', views.StudentsNotUsingTransportView.as_view(), name='transport-not-using-report'),
+
+    # Promote Student — Transport tab
+    path('promote/', views.PromoteTransportView.as_view(), name='transport-promote'),
 ]

@@ -1,10 +1,10 @@
 from rest_framework import generics, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from .models import Visitor, ShortLeave, Feedback, AuthorisedPerson, HRMLetter
+from .models import Visitor, ShortLeave, Feedback, AuthorisedPerson, HRMLetter, HRMCandidate
 from .serializers import (
     VisitorSerializer, ShortLeaveSerializer, FeedbackSerializer,
-    AuthorisedPersonSerializer, HRMLetterSerializer
+    AuthorisedPersonSerializer, HRMLetterSerializer, HRMCandidateSerializer
 )
 from utils.permissions import IsSchoolStaff, IsSchoolAdmin
 
@@ -114,6 +114,32 @@ class HRMLetterDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = HRMLetterSerializer
     permission_classes = [IsSchoolAdmin]
     queryset = HRMLetter.objects.all()
+
+
+class HRMCandidateListCreateView(generics.ListCreateAPIView):
+    """List HRM / Add HRM. ?interview_status=scheduled narrows the list to
+    candidates with an interview scheduled — used by the Add Letter page."""
+    serializer_class = HRMCandidateSerializer
+    permission_classes = [IsSchoolStaff]
+
+    def get_queryset(self):
+        qs = HRMCandidate.objects.all()
+        params = self.request.query_params
+        if params.get('interview_status'):
+            qs = qs.filter(interview_status=params['interview_status'])
+        if params.get('search'):
+            from django.db.models import Q
+            q = params['search']
+            qs = qs.filter(Q(full_name__icontains=q) | Q(mobile__icontains=q))
+        return qs
+
+
+class HRMCandidateDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """PATCH is used both by List HRM (interview_status) and Add Letter
+    (decision) to update just that one field per row."""
+    serializer_class = HRMCandidateSerializer
+    permission_classes = [IsSchoolStaff]
+    queryset = HRMCandidate.objects.all()
 
 
 class ShortLeaveDetailView(generics.RetrieveUpdateDestroyAPIView):

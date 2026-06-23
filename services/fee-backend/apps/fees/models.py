@@ -144,22 +144,23 @@ class StudentFeeHeadMonthDiscount(models.Model):
         ('feb', 'February'), ('mar', 'March'),
     ]
 
-    student_id = models.IntegerField()
-    head_number = models.IntegerField()  # 1-20, maps to StudentFeeDetail's head{N}_{month}
+    stu_id = models.IntegerField()  # References students.id (Student table PK)
+    head_number = models.IntegerField()  # 1-20 maps to StudentFeeDetail's head{N}_{month}; -1 = Transport (tp_{month})
     month = models.CharField(max_length=3, choices=MONTH_CHOICES)
+    actual_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)  # due amount this discount was computed against, at save time
     discount_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     session = models.CharField(max_length=20)
     remarks = models.CharField(max_length=200, blank=True)
-    created_by = models.IntegerField(null=True, blank=True)
+    created_by = models.IntegerField(null=True, blank=True)  # user id who applied the discount
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = 'student_fee_head_month_discounts'
-        unique_together = ['student_id', 'head_number', 'month', 'session']
+        unique_together = ['stu_id', 'head_number', 'month', 'session']
 
     def __str__(self):
-        return f'Student {self.student_id} - head{self.head_number} - {self.month} - ₹{self.discount_amount}'
+        return f'Student {self.stu_id} - head{self.head_number} - {self.month} - ₹{self.discount_amount}'
 
 
 class FeeReceipt(models.Model):
@@ -430,6 +431,7 @@ class FeePaid(models.Model):
     head20 = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
 
     amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    transport_amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)  # Transport (tp_{month}) portion of this payment
     mode = models.CharField(max_length=20, choices=PAYMENT_MODE_CHOICES)
     rec_no = models.CharField(max_length=50, unique=True)
     trans_id = models.CharField(max_length=100, blank=True, null=True)
@@ -734,6 +736,22 @@ class StudentFeeDetail(models.Model):
     head20_jan = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     head20_feb = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     head20_mar = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+
+    # Transport - Months (dedicated columns, separate from head1-20; populated
+    # by Apply Transport from the chosen stop's monthly_fee, independent of
+    # whether the class has a 'Transport' fee head configured)
+    tp_apr = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    tp_may = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    tp_jun = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    tp_jul = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    tp_aug = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    tp_sep = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    tp_oct = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    tp_nov = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    tp_dec = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    tp_jan = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    tp_feb = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    tp_mar = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

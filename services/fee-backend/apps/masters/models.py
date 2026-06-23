@@ -116,12 +116,167 @@ class SessionMaster(models.Model):
     status = models.BooleanField(default=True, help_text='1=Active, 0=Inactive')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
         db_table = 'session_master'
         ordering = ['-session_year']
-    
+
     def __str__(self):
         return self.session_year
+
+
+class HouseMaster(models.Model):
+    """School house (sports day / inter-house competitions etc.)"""
+    house_name = models.CharField(max_length=50, verbose_name='House Name', unique=True)
+    color = models.CharField(max_length=30, blank=True, help_text='e.g. Red, #FF0000')
+    status = models.BooleanField(default=True, help_text='1=Active, 0=Inactive')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'house_master'
+        ordering = ['house_name']
+
+    def __str__(self):
+        return self.house_name
+
+
+class BloodGroupMaster(models.Model):
+    """Blood group options (A+, B+, O-, etc.) for student records"""
+    name = models.CharField(max_length=10, verbose_name='Blood Group', unique=True)
+    status = models.BooleanField(default=True, help_text='1=Active, 0=Inactive')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'blood_group_master'
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
+class SchoolMaster(models.Model):
+    """Single-record school info (name, address, board, logo, etc.) — used
+    on receipts, ID cards, report cards. Singleton: always accessed/created
+    as id=1, never listed."""
+    school_name = models.CharField(max_length=200, blank=True)
+    address = models.CharField(max_length=255, blank=True)
+    city = models.CharField(max_length=100, blank=True)
+    state = models.CharField(max_length=100, blank=True)
+    pincode = models.CharField(max_length=10, blank=True)
+    phone = models.CharField(max_length=20, blank=True)
+    email = models.EmailField(blank=True)
+    website = models.CharField(max_length=200, blank=True)
+    affiliation_board = models.CharField(max_length=100, blank=True)
+    registration_no = models.CharField(max_length=100, blank=True)
+    established_year = models.CharField(max_length=4, blank=True)
+    principal_name = models.CharField(max_length=200, blank=True)
+    logo = models.ImageField(upload_to='school_logo/', null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'school_master'
+
+    def __str__(self):
+        return self.school_name or 'School Info'
+
+
+class CategoryMaster(models.Model):
+    """Admission/reservation category (General, OBC, SC, ST, EWS, etc.)"""
+    category_name = models.CharField(max_length=50, verbose_name='Category Name', unique=True)
+    status = models.BooleanField(default=True, help_text='1=Active, 0=Inactive')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'category_master'
+        ordering = ['category_name']
+
+    def __str__(self):
+        return self.category_name
+
+
+class ReligionMaster(models.Model):
+    """Religion options for student records"""
+    religion_name = models.CharField(max_length=50, verbose_name='Religion Name', unique=True)
+    status = models.BooleanField(default=True, help_text='1=Active, 0=Inactive')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'religion_master'
+        ordering = ['religion_name']
+
+    def __str__(self):
+        return self.religion_name
+
+
+class CasteMaster(models.Model):
+    """Caste options for student records"""
+    caste_name = models.CharField(max_length=50, verbose_name='Caste Name', unique=True)
+    status = models.BooleanField(default=True, help_text='1=Active, 0=Inactive')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'caste_master'
+        ordering = ['caste_name']
+
+    def __str__(self):
+        return self.caste_name
+
+
+class AttendanceMaster(models.Model):
+    """Attendance status options (Present, Absent, Leave, etc.) — feeds the
+    attendance status dropdown on Transport Attendance (and any future
+    attendance register)."""
+    status_name = models.CharField(max_length=30, verbose_name='Status Name', unique=True)
+    status = models.BooleanField(default=True, help_text='1=Active, 0=Inactive')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'attendance_master'
+        ordering = ['status_name']
+
+    def __str__(self):
+        return self.status_name
+
+
+class CertificateMaster(models.Model):
+    """Certificate types (Birth Certificate, Transfer Certificate, Caste
+    Certificate, etc.) — defines exactly which certificate upload slots
+    appear on a student's profile."""
+    certificate_name = models.CharField(max_length=100, verbose_name='Certificate Name', unique=True)
+    status = models.BooleanField(default=True, help_text='1=Active, 0=Inactive')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'certificate_master'
+        ordering = ['certificate_name']
+
+    def __str__(self):
+        return self.certificate_name
+
+
+class StudentCertificate(models.Model):
+    """A student's uploaded file for one CertificateMaster type. One row per
+    (student, certificate type) — re-uploading replaces the existing file."""
+    stu_id = models.IntegerField()  # References students.id
+    certificate_id = models.IntegerField()  # References CertificateMaster.id
+    certificate_name = models.CharField(max_length=100, blank=True)  # denormalized for display
+    file = models.FileField(upload_to='student_certificates/')
+    uploaded_by = models.IntegerField(null=True, blank=True)
+    uploaded_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'student_certificates'
+        unique_together = ['stu_id', 'certificate_id']
+
+    def __str__(self):
+        return f'Student {self.stu_id} - {self.certificate_name}'
 
 

@@ -1,285 +1,195 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Edit2, Trash2, Check, X, Loader2, AlertTriangle, Star } from 'lucide-react'
+import { Plus, Edit, Trash2, X, Save } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { academicsApi } from '../../services/api'
+import { academicsApi, studentsApi } from '../../services/api'
 
-const EMPTY_FORM = { min_percentage: '', max_percentage: '', remark: '', grade: '' }
-
-function DeleteConfirm({ label, onConfirm, onCancel, isPending }) {
-  return (
-    <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-1.5">
-      <AlertTriangle size={14} className="text-red-500 shrink-0" />
-      <span className="text-xs text-red-700">Delete <strong>{label}</strong>?</span>
-      <button
-        onClick={onConfirm}
-        disabled={isPending}
-        className="text-xs font-semibold text-white bg-red-500 hover:bg-red-600 px-2 py-0.5 rounded disabled:opacity-50"
-      >
-        {isPending ? <Loader2 size={11} className="animate-spin" /> : 'Yes'}
-      </button>
-      <button onClick={onCancel} className="text-xs text-gray-500 hover:text-gray-700">Cancel</button>
-    </div>
-  )
-}
-
-function GradeBadgeColor(grade) {
-  if (!grade) return 'badge-gray'
-  const g = grade.toUpperCase()
-  if (g.startsWith('A')) return 'badge-green'
-  if (g.startsWith('B')) return 'badge-blue'
-  if (g.startsWith('C')) return 'badge-yellow'
-  return 'badge-gray'
-}
-
-function RemarkRow({ rem }) {
-  const qc = useQueryClient()
-  const [editing, setEditing] = useState(false)
-  const [confirming, setConfirming] = useState(false)
-  const [form, setForm] = useState({
-    min_percentage: rem.min_percentage,
-    max_percentage: rem.max_percentage,
-    remark: rem.remark,
-    grade: rem.grade,
-  })
-
-  const updateMut = useMutation({
-    mutationFn: () => academicsApi.updateRemark(rem.id, {
-      ...form,
-      min_percentage: Number(form.min_percentage),
-      max_percentage: Number(form.max_percentage),
-    }),
-    onSuccess: () => { qc.invalidateQueries(['remarks']); setEditing(false); toast.success('Remark updated') },
-    onError: () => toast.error('Failed to update remark'),
-  })
-
-  const deleteMut = useMutation({
-    mutationFn: () => academicsApi.deleteRemark(rem.id),
-    onSuccess: () => { qc.invalidateQueries(['remarks']); toast.success('Remark deleted') },
-    onError: () => toast.error('Failed to delete remark'),
-  })
-
-  if (editing) {
-    return (
-      <tr className="bg-blue-50">
-        <td className="px-4 py-2">
-          <input
-            type="number"
-            autoFocus
-            className="form-input text-sm py-1 w-24"
-            value={form.min_percentage}
-            onChange={e => setForm(p => ({ ...p, min_percentage: e.target.value }))}
-          />
-        </td>
-        <td className="px-4 py-2">
-          <input
-            type="number"
-            className="form-input text-sm py-1 w-24"
-            value={form.max_percentage}
-            onChange={e => setForm(p => ({ ...p, max_percentage: e.target.value }))}
-          />
-        </td>
-        <td className="px-4 py-2">
-          <input
-            className="form-input text-sm py-1 uppercase w-20"
-            value={form.grade}
-            onChange={e => setForm(p => ({ ...p, grade: e.target.value.toUpperCase() }))}
-            placeholder="A+"
-          />
-        </td>
-        <td className="px-4 py-2">
-          <input
-            className="form-input text-sm py-1"
-            value={form.remark}
-            onChange={e => setForm(p => ({ ...p, remark: e.target.value }))}
-            placeholder="Excellent"
-          />
-        </td>
-        <td className="px-4 py-2">
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => updateMut.mutate()}
-              disabled={updateMut.isPending}
-              className="p-1.5 bg-green-100 hover:bg-green-200 rounded text-green-700"
-            >
-              {updateMut.isPending ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
-            </button>
-            <button onClick={() => setEditing(false)} className="p-1.5 bg-gray-100 hover:bg-gray-200 rounded text-gray-500">
-              <X size={13} />
-            </button>
-          </div>
-        </td>
-      </tr>
-    )
-  }
-
-  return (
-    <tr className="hover:bg-gray-50 group">
-      <td className="px-4 py-3 text-sm text-gray-700">{rem.min_percentage}%</td>
-      <td className="px-4 py-3 text-sm text-gray-700">{rem.max_percentage}%</td>
-      <td className="px-4 py-3">
-        <span className={`badge ${GradeBadgeColor(rem.grade)} font-semibold`}>{rem.grade || '—'}</span>
-      </td>
-      <td className="px-4 py-3 text-sm text-gray-800 font-medium">{rem.remark}</td>
-      <td className="px-4 py-3">
-        {confirming ? (
-          <DeleteConfirm
-            label={rem.remark}
-            onConfirm={() => deleteMut.mutate()}
-            onCancel={() => setConfirming(false)}
-            isPending={deleteMut.isPending}
-          />
-        ) : (
-          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-            <button onClick={() => setEditing(true)} className="p-1.5 hover:bg-blue-50 rounded text-blue-500">
-              <Edit2 size={14} />
-            </button>
-            <button onClick={() => setConfirming(true)} className="p-1.5 hover:bg-red-50 rounded text-red-400">
-              <Trash2 size={14} />
-            </button>
-          </div>
-        )}
-      </td>
-    </tr>
-  )
-}
-
-function AddRemarkForm({ onDone }) {
-  const qc = useQueryClient()
-  const [form, setForm] = useState(EMPTY_FORM)
-
-  const createMut = useMutation({
-    mutationFn: () => academicsApi.createRemark({
-      ...form,
-      min_percentage: Number(form.min_percentage),
-      max_percentage: Number(form.max_percentage),
-    }),
-    onSuccess: () => { qc.invalidateQueries(['remarks']); setForm(EMPTY_FORM); toast.success('Remark created') },
-    onError: (err) => toast.error(err.response?.data?.detail || 'Failed to create remark'),
-  })
-
-  const valid = form.min_percentage !== '' && form.max_percentage !== '' && form.remark.trim()
-
-  return (
-    <div className="card p-5">
-      <h3 className="text-sm font-semibold text-gray-700 mb-4">Add Grade Remark</h3>
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <div>
-          <label className="form-label">Min Percentage (%) <span className="text-red-500">*</span></label>
-          <input
-            autoFocus
-            type="number"
-            className="form-input"
-            placeholder="0"
-            min="0"
-            max="100"
-            value={form.min_percentage}
-            onChange={e => setForm(p => ({ ...p, min_percentage: e.target.value }))}
-          />
-        </div>
-        <div>
-          <label className="form-label">Max Percentage (%) <span className="text-red-500">*</span></label>
-          <input
-            type="number"
-            className="form-input"
-            placeholder="100"
-            min="0"
-            max="100"
-            value={form.max_percentage}
-            onChange={e => setForm(p => ({ ...p, max_percentage: e.target.value }))}
-          />
-        </div>
-        <div>
-          <label className="form-label">Grade</label>
-          <input
-            className="form-input uppercase"
-            placeholder="A+"
-            value={form.grade}
-            onChange={e => setForm(p => ({ ...p, grade: e.target.value.toUpperCase() }))}
-          />
-        </div>
-        <div>
-          <label className="form-label">Remark <span className="text-red-500">*</span></label>
-          <input
-            className="form-input"
-            placeholder="Excellent"
-            value={form.remark}
-            onChange={e => setForm(p => ({ ...p, remark: e.target.value }))}
-          />
-        </div>
-      </div>
-      <div className="flex gap-2 mt-4">
-        <button
-          onClick={() => createMut.mutate()}
-          disabled={!valid || createMut.isPending}
-          className="btn-primary flex items-center gap-2 disabled:opacity-50"
-        >
-          {createMut.isPending ? <><Loader2 size={14} className="animate-spin" /> Saving…</> : <><Plus size={14} /> Add Remark</>}
-        </button>
-        <button onClick={onDone} className="btn-secondary">Cancel</button>
-      </div>
-    </div>
-  )
-}
+const listOf = (r) => r.data.results || r.data
+const emptyForm = { text: '', display_order: 0, is_active: true, class_id: '', section_ids: [] }
 
 export default function RemarkMaster() {
+  const qc = useQueryClient()
   const [showForm, setShowForm] = useState(false)
+  const [editing, setEditing] = useState(null)
+  const [form, setForm] = useState(emptyForm)
 
   const { data: remarks = [], isLoading } = useQuery({
     queryKey: ['remarks'],
-    queryFn: () => academicsApi.remarks().then(r => r.data.results ?? r.data),
+    queryFn: () => academicsApi.remarks().then(listOf),
+  })
+  const { data: classes = [] } = useQuery({
+    queryKey: ['classMasters'],
+    queryFn: () => studentsApi.classMasters().then(listOf),
+  })
+  const { data: sections = [] } = useQuery({
+    queryKey: ['sectionMasters', form.class_id],
+    queryFn: () => studentsApi.sectionMasters({ class_id: form.class_id }).then(listOf),
+    enabled: !!form.class_id,
   })
 
-  const sorted = [...remarks].sort((a, b) => b.min_percentage - a.min_percentage)
+  const saveMutation = useMutation({
+    mutationFn: () => {
+      const payload = {
+        text: form.text.trim(),
+        class_ref: Number(form.class_id),
+        section_ids: form.section_ids.map(Number),
+        is_active: form.is_active,
+        display_order: Number(form.display_order) || 0,
+      }
+      return editing
+        ? academicsApi.updateRemark(editing.id, payload)
+        : academicsApi.createRemark(payload)
+    },
+    onSuccess: () => {
+      qc.invalidateQueries(['remarks'])
+      setShowForm(false); setEditing(null); setForm(emptyForm)
+      toast.success(editing ? 'Updated!' : 'Remark created!')
+    },
+    onError: (e) => toast.error(e.response?.data?.detail || 'Failed to save'),
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (id) => academicsApi.deleteRemark(id),
+    onSuccess: () => { qc.invalidateQueries(['remarks']); toast.success('Deleted!') },
+    onError: () => toast.error('Failed to delete'),
+  })
+
+  const toggleSection = (id) => {
+    const sid = String(id)
+    setForm(p => ({ ...p, section_ids: p.section_ids.includes(sid) ? p.section_ids.filter(x => x !== sid) : [...p.section_ids, sid] }))
+  }
+
+  // Switching the class clears section selections (sections belong to a class).
+  const changeClass = (classId) => {
+    setForm(p => ({ ...p, class_id: classId, section_ids: [] }))
+  }
+
+  const submit = (e) => {
+    e.preventDefault()
+    if (!form.text.trim()) { toast.error('Remark text is required'); return }
+    if (!form.class_id) { toast.error('Select a class'); return }
+    if (form.section_ids.length === 0) { toast.error('Select at least one section'); return }
+    saveMutation.mutate()
+  }
+
+  const openEdit = (r) => {
+    setEditing(r)
+    setForm({
+      text: r.text || '', display_order: r.display_order ?? 0, is_active: r.is_active,
+      class_id: r.class_ref ? String(r.class_ref) : '',
+      section_ids: (r.sections || []).map(s => String(s.id)),
+    })
+    setShowForm(true)
+  }
+  const openNew = () => { setEditing(null); setForm(emptyForm); setShowForm(true) }
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="page-title">Grade Remark Master</h1>
-          <p className="page-sub">Configure grade labels and remarks for percentage ranges used in report cards.</p>
+          <h1 className="page-title">Remark Master</h1>
+          <p className="page-sub">Predefined remarks per class &amp; section. Teachers pick one per student in Marks Feeding.</p>
         </div>
-        <button onClick={() => setShowForm(v => !v)} className="btn-primary flex items-center gap-2">
-          <Plus size={16} /> Add Remark
-        </button>
+        <button onClick={openNew} className="btn-primary flex items-center gap-2"><Plus size={16} /> Add Remark</button>
       </div>
 
-      {showForm && <AddRemarkForm onDone={() => setShowForm(false)} />}
+      {showForm && (
+        <form onSubmit={submit} className="card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold">{editing ? 'Edit' : 'Add'} Remark</h3>
+            <button type="button" onClick={() => setShowForm(false)}><X size={16} className="text-gray-400" /></button>
+          </div>
 
-      <div className="card overflow-hidden">
-        {isLoading ? (
-          <div className="flex items-center justify-center py-16">
-            <div className="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full" />
-          </div>
-        ) : sorted.length === 0 ? (
-          <div className="p-12 text-center">
-            <div className="w-16 h-16 bg-purple-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <Star size={28} className="text-purple-500" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="form-label">Class</label>
+              <select className="form-select" value={form.class_id} onChange={e => changeClass(e.target.value)}>
+                <option value="">Select Class</option>
+                {classes.map(c => <option key={c.id} value={c.id}>{c.class_name}</option>)}
+              </select>
             </div>
-            <h3 className="font-semibold text-gray-700 mb-1">No remarks configured</h3>
-            <p className="text-sm text-gray-400 mb-4">Add grade remarks like "Excellent (90-100%)" to use on report cards.</p>
-            <button onClick={() => setShowForm(true)} className="btn-primary inline-flex items-center gap-2">
-              <Plus size={14} /> Add First Remark
-            </button>
+            <div>
+              <label className="form-label">Sections</label>
+              {!form.class_id ? (
+                <p className="text-sm text-gray-400 py-2">Select a class first.</p>
+              ) : sections.length === 0 ? (
+                <p className="text-sm text-gray-400 py-2">No sections found for this class.</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {sections.map(s => (
+                    <label
+                      key={s.id}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm cursor-pointer ${
+                        form.section_ids.includes(String(s.id)) ? 'bg-purple-50 border-purple-400 text-purple-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      <input type="checkbox" className="hidden" checked={form.section_ids.includes(String(s.id))} onChange={() => toggleSection(s.id)} />
+                      {s.section_name}
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-        ) : (
-          <div className="table-container">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Min %</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Max %</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Grade</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Remark</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {sorted.map(rem => <RemarkRow key={rem.id} rem={rem} />)}
-              </tbody>
-            </table>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 pt-4 border-t border-gray-100">
+            <div className="md:col-span-1">
+              <label className="form-label">Remark Text</label>
+              <input className="form-input" value={form.text} onChange={e => setForm(p => ({ ...p, text: e.target.value }))} placeholder="e.g. Excellent performance" />
+            </div>
+            <div>
+              <label className="form-label">Display Order</label>
+              <input type="number" className="form-input" value={form.display_order} onChange={e => setForm(p => ({ ...p, display_order: e.target.value }))} min={0} />
+            </div>
+            <div className="flex items-end pb-2">
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                <input type="checkbox" checked={form.is_active} onChange={e => setForm(p => ({ ...p, is_active: e.target.checked }))} />
+                Active
+              </label>
+            </div>
           </div>
-        )}
+
+          <div className="flex gap-2 mt-4">
+            <button type="submit" disabled={saveMutation.isLoading} className="btn-primary btn-sm flex items-center gap-1.5"><Save size={14} /> Save</button>
+            <button type="button" onClick={() => setShowForm(false)} className="btn-secondary btn-sm">Cancel</button>
+          </div>
+        </form>
+      )}
+
+      <div className="table-container">
+        <table className="data-table">
+          <thead>
+            <tr><th>#</th><th>Remark</th><th>Class</th><th>Sections</th><th>Order</th><th>Status</th><th>Actions</th></tr>
+          </thead>
+          <tbody>
+            {isLoading && <tr><td colSpan={7} className="text-center py-8 text-gray-400">Loading...</td></tr>}
+            {!isLoading && remarks.length === 0 && <tr><td colSpan={7} className="text-center py-8 text-gray-400">No remarks defined yet</td></tr>}
+            {remarks.map((r, i) => (
+              <tr key={r.id}>
+                <td className="text-gray-500">{i + 1}</td>
+                <td className="font-medium">{r.text}</td>
+                <td className="text-gray-600">{r.class_name}</td>
+                <td>
+                  {(r.sections || []).length === 0 ? (
+                    <span className="text-gray-400 text-xs">No sections</span>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5">
+                      {r.sections.map(s => <span key={s.id} className="badge-purple">{s.section_name}</span>)}
+                    </div>
+                  )}
+                </td>
+                <td className="text-gray-500">{r.display_order}</td>
+                <td>{r.is_active ? <span className="badge badge-green">Active</span> : <span className="badge badge-gray">Inactive</span>}</td>
+                <td>
+                  <div className="flex gap-1">
+                    <button onClick={() => openEdit(r)} className="p-1.5 hover:bg-blue-50 rounded text-blue-600" title="Edit"><Edit size={14} /></button>
+                    <button onClick={() => { if (confirm(`Delete "${r.text}"?`)) deleteMutation.mutate(r.id) }} className="p-1.5 hover:bg-red-50 rounded text-red-500"><Trash2 size={14} /></button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   )

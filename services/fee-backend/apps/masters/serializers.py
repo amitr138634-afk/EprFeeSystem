@@ -1,5 +1,10 @@
 from rest_framework import serializers
-from .models import ClassMaster, ClassSectionMaster, SectionMaster, SessionMaster, Student
+from .models import (
+    ClassMaster, ClassSectionMaster, SectionMaster, SessionMaster, Student,
+    HouseMaster, BloodGroupMaster, SchoolMaster,
+    CategoryMaster, ReligionMaster, CasteMaster, AttendanceMaster,
+    CertificateMaster, StudentCertificate,
+)
 
 
 class ClassMasterSerializer(serializers.ModelSerializer):
@@ -46,6 +51,69 @@ class SessionMasterSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('Invalid year format')
 
         return value
+
+
+class HouseMasterSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = HouseMaster
+        fields = '__all__'
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class BloodGroupMasterSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BloodGroupMaster
+        fields = '__all__'
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class SchoolMasterSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SchoolMaster
+        fields = '__all__'
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class CategoryMasterSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CategoryMaster
+        fields = '__all__'
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class ReligionMasterSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ReligionMaster
+        fields = '__all__'
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class CasteMasterSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CasteMaster
+        fields = '__all__'
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class AttendanceMasterSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AttendanceMaster
+        fields = '__all__'
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class CertificateMasterSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CertificateMaster
+        fields = '__all__'
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class StudentCertificateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = StudentCertificate
+        fields = '__all__'
+        read_only_fields = ['id', 'uploaded_at']
 
 
 class StudentDetailSerializer(serializers.ModelSerializer):

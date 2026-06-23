@@ -5,12 +5,6 @@ import { Search } from 'lucide-react'
 import { feeApi, masterApi } from '../../services/api'
 import useAuthStore from '../../store/authStore'
 
-const MONTHS = [
-  { v: 'apr', l: 'April' }, { v: 'may', l: 'May' }, { v: 'jun', l: 'June' }, { v: 'jul', l: 'July' },
-  { v: 'aug', l: 'August' }, { v: 'sep', l: 'September' }, { v: 'oct', l: 'October' }, { v: 'nov', l: 'November' },
-  { v: 'dec', l: 'December' }, { v: 'jan', l: 'January' }, { v: 'feb', l: 'February' }, { v: 'mar', l: 'March' },
-]
-
 const listOf = (r) => r.data.results || r.data
 
 export default function FeeSummary() {
@@ -18,8 +12,8 @@ export default function FeeSummary() {
   const activeSession = useAuthStore(s => s.currentSession?.session_year) || ''
   const [className, setClassName] = useState('')
   const [section, setSection] = useState('')
-  const [fromMonth, setFromMonth] = useState('')
-  const [toMonth, setToMonth] = useState('')
+  const [headName, setHeadName] = useState('')
+  const [studentType, setStudentType] = useState('')
   const [search, setSearch] = useState('')
 
   const { data: classes = [] } = useQuery({
@@ -27,12 +21,22 @@ export default function FeeSummary() {
     queryFn: () => masterApi.classes().then(listOf),
   })
 
+  const { data: headNames = [] } = useQuery({
+    queryKey: ['fee-summary-head-names', activeSession],
+    queryFn: () => feeApi.feeSummaryHeadNames({ session: activeSession }).then(r => r.data),
+  })
+
+  const { data: sections = [] } = useQuery({
+    queryKey: ['sections-fee-summary'],
+    queryFn: () => masterApi.getSectionMaster().then(listOf),
+  })
+
   const params = {
     session: activeSession,
     ...(className && { class_name: className }),
     ...(section && { section }),
-    ...(fromMonth && { from_month: fromMonth }),
-    ...(toMonth && { to_month: toMonth }),
+    ...(headName && { head_name: headName }),
+    ...(studentType && { type: studentType }),
     ...(search && { search }),
   }
 
@@ -50,11 +54,18 @@ export default function FeeSummary() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-800">Fee Summary</h1>
-        <p className="text-sm text-gray-500 mt-1">Student-wise, month-wise due / paid / balance</p>
+        <p className="text-sm text-gray-500 mt-1">Student-wise fee due / paid / balance — filter by head, class, section, and admission type</p>
       </div>
 
       <div className="card p-5">
-        <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+          <div>
+            <label className="form-label">Fee Head</label>
+            <select className="form-select" value={headName} onChange={e => setHeadName(e.target.value)}>
+              <option value="">All Heads</option>
+              {headNames.map(h => <option key={h} value={h}>{h}</option>)}
+            </select>
+          </div>
           <div>
             <label className="form-label">Class</label>
             <select className="form-select" value={className} onChange={e => setClassName(e.target.value)}>
@@ -62,22 +73,22 @@ export default function FeeSummary() {
               {classes.map(c => <option key={c.id} value={c.id}>{c.class_name}</option>)}
             </select>
           </div>
-          <div><label className="form-label">Section</label><input className="form-input" value={section} onChange={e => setSection(e.target.value)} placeholder="e.g. A" /></div>
           <div>
-            <label className="form-label">From Month</label>
-            <select className="form-select" value={fromMonth} onChange={e => setFromMonth(e.target.value)}>
-              <option value="">Full Year</option>
-              {MONTHS.map(m => <option key={m.v} value={m.v}>{m.l}</option>)}
+            <label className="form-label">Section</label>
+            <select className="form-select" value={section} onChange={e => setSection(e.target.value)}>
+              <option value="">All Sections</option>
+              {sections.map(s => <option key={s.id} value={s.id}>{s.section}</option>)}
             </select>
           </div>
           <div>
-            <label className="form-label">To Month</label>
-            <select className="form-select" value={toMonth} onChange={e => setToMonth(e.target.value)}>
-              <option value="">Full Year</option>
-              {MONTHS.map(m => <option key={m.v} value={m.v}>{m.l}</option>)}
+            <label className="form-label">Admission Type</label>
+            <select className="form-select" value={studentType} onChange={e => setStudentType(e.target.value)}>
+              <option value="">New + Old</option>
+              <option value="new">New</option>
+              <option value="old">Old</option>
             </select>
           </div>
-          <div>
+          <div className="sm:col-span-2 lg:col-span-2">
             <label className="form-label">Search</label>
             <div className="relative">
               <Search size={15} className="absolute left-2.5 top-2.5 text-gray-400" />
@@ -88,7 +99,7 @@ export default function FeeSummary() {
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="stat-card"><p className="stat-label">Total Due</p><p className="stat-value">₹{totals.due.toLocaleString('en-IN')}</p></div>
+        <div className="stat-card"><p className="stat-label">{headName ? `${headName} Due` : 'Total Due'}</p><p className="stat-value">₹{totals.due.toLocaleString('en-IN')}</p></div>
         <div className="stat-card"><p className="stat-label">Discount</p><p className="stat-value text-amber-600">₹{totals.discount.toLocaleString('en-IN')}</p></div>
         <div className="stat-card"><p className="stat-label">Paid</p><p className="stat-value text-green-600">₹{totals.paid.toLocaleString('en-IN')}</p></div>
         <div className="stat-card"><p className="stat-label">Balance</p><p className="stat-value text-red-600">₹{totals.balance.toLocaleString('en-IN')}</p></div>
@@ -98,20 +109,21 @@ export default function FeeSummary() {
         <table className="data-table">
           <thead>
             <tr>
-              <th>Admission No</th><th>Student Name</th><th>Class</th><th>Section</th>
+              <th>Admission No</th><th>Student Name</th><th>Class</th><th>Section</th><th>Type</th>
               <th className="text-right">Due</th><th className="text-right">Discount</th>
               <th className="text-right">Paid</th><th className="text-right">Balance</th><th></th>
             </tr>
           </thead>
           <tbody>
-            {isLoading && <tr><td colSpan={9} className="text-center py-8 text-gray-400">Loading...</td></tr>}
-            {!isLoading && rows.length === 0 && <tr><td colSpan={9} className="text-center py-8 text-gray-400">No records found</td></tr>}
+            {isLoading && <tr><td colSpan={10} className="text-center py-8 text-gray-400">Loading...</td></tr>}
+            {!isLoading && rows.length === 0 && <tr><td colSpan={10} className="text-center py-8 text-gray-400">No records found</td></tr>}
             {rows.map(r => (
               <tr key={r.student_id} className="hover:bg-gray-50 cursor-pointer" onClick={() => navigate(`/feemgmt/student-profile/${r.student_id}`)}>
                 <td className="font-medium text-gray-900">{r.admission_no}</td>
                 <td>{r.student_name}</td>
                 <td>{r.class_name}</td>
                 <td>{r.section}</td>
+                <td><span className={r.type === 'old' ? 'badge-gray' : 'badge-blue'}>{r.type === 'old' ? 'Old' : 'New'}</span></td>
                 <td className="text-right">₹{r.total_due.toLocaleString('en-IN')}</td>
                 <td className="text-right text-amber-600">₹{r.total_discount.toLocaleString('en-IN')}</td>
                 <td className="text-right text-green-600">₹{r.total_paid.toLocaleString('en-IN')}</td>

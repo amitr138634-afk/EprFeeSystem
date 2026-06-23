@@ -13,5 +13,7 @@ urlpatterns = [
     path('authorised-persons/<int:pk>/', views.AuthorisedPersonDetailView.as_view(), name='authorised-person-detail'),
     path('hrm-letters/', views.HRMLetterListCreateView.as_view(), name='hrm-letter-list'),
     path('hrm-letters/<int:pk>/', views.HRMLetterDetailView.as_view(), name='hrm-letter-detail'),
+    path('hrm-candidates/', views.HRMCandidateListCreateView.as_view(), name='hrm-candidate-list'),
+    path('hrm-candidates/<int:pk>/', views.HRMCandidateDetailView.as_view(), name='hrm-candidate-detail'),
     path('enquiry-dashboard/', views.EnquiryDashboardView.as_view(), name='enquiry-dashboard'),
 ]

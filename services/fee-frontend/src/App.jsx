@@ -18,23 +18,51 @@ import Uniforms from './pages/fees/Uniforms'
 import VehicleList from './pages/transport/VehicleList'
 import RouteList from './pages/transport/RouteList'
 import TransportStudents from './pages/transport/TransportStudents'
+import NotUsingTransport from './pages/transport/NotUsingTransport'
+import BuswiseList from './pages/transport/BuswiseList'
+import RoutewiseList from './pages/transport/RoutewiseList'
+import StopwiseList from './pages/transport/StopwiseList'
+import TransportAttendance from './pages/transport/TransportAttendance'
 import RouteMasterPage from './pages/transport/RouteMasterPage'
 import BusMasterPage from './pages/transport/BusMasterPage'
 import StopMasterPage from './pages/transport/StopMasterPage'
 import AdmissionList from './pages/students/AdmissionList'
+import PromoteStudent from './pages/students/PromoteStudent'
+import DemoteStudent from './pages/students/DemoteStudent'
+import SearchStudent from './pages/students/SearchStudent'
+import ClasswiseStrength from './pages/students/ClasswiseStrength'
+import StudentListReport from './pages/students/StudentListReport'
+import ChangeAdmissionNo from './pages/students/ChangeAdmissionNo'
 import AdmissionQuery from './pages/frontdesk/AdmissionQuery'
 import VisitorList from './pages/frontdesk/VisitorList'
 import Feedbacks from './pages/frontdesk/Feedbacks'
+import AddHRM from './pages/frontdesk/AddHRM'
+import ListHRM from './pages/frontdesk/ListHRM'
+import AddLetter from './pages/frontdesk/AddLetter'
 import ClassMaster from './pages/masters/ClassMaster'
 import SectionMaster from './pages/masters/SectionMaster'
 import SecMaster from './pages/masters/SecMaster'
 import SessionMaster from './pages/masters/SessionMaster'
+import HouseMaster from './pages/masters/HouseMaster'
+import BloodGroupMaster from './pages/masters/BloodGroupMaster'
+import SchoolMaster from './pages/masters/SchoolMaster'
+import CategoryMaster from './pages/masters/CategoryMaster'
+import ReligionMaster from './pages/masters/ReligionMaster'
+import CasteMaster from './pages/masters/CasteMaster'
+import AttendanceMaster from './pages/masters/AttendanceMaster'
+import CertificateMaster from './pages/masters/CertificateMaster'
 
 // Fee Management
 import PayFeeNew from './pages/feemgmt/PayFee'
 import StudentProfile from './pages/feemgmt/StudentProfile'
+import PayFeePage from './pages/feemgmt/PayFeePage'
+import CompleteDetailPage from './pages/feemgmt/CompleteDetailPage'
+import ApplyTransportPage from './pages/feemgmt/ApplyTransportPage'
+import ApplyDiscountPage from './pages/feemgmt/ApplyDiscountPage'
+import CertificateUploadPage from './pages/feemgmt/CertificateUploadPage'
 import FeeSummary from './pages/feemgmt/FeeSummary'
 import FeeTransaction from './pages/feemgmt/FeeTransaction'
+import DefaulterReport from './pages/feemgmt/DefaulterReport'
 
 // Placeholder for unbuilt pages
 import { Clock } from 'lucide-react'
@@ -83,8 +111,14 @@ export default function App() {
         {/* ── Fee Management (New) ───────────────────────────────── */}
         <Route path="feemgmt/pay-fee"         element={<PayFeeNew />} />
         <Route path="feemgmt/student-profile/:studentId" element={<StudentProfile />} />
+        <Route path="feemgmt/student-profile/:studentId/pay-fee"          element={<PayFeePage />} />
+        <Route path="feemgmt/student-profile/:studentId/complete-detail"  element={<CompleteDetailPage />} />
+        <Route path="feemgmt/student-profile/:studentId/apply-transport"  element={<ApplyTransportPage />} />
+        <Route path="feemgmt/student-profile/:studentId/apply-discount"   element={<ApplyDiscountPage />} />
+        <Route path="feemgmt/student-profile/:studentId/certificates"    element={<CertificateUploadPage />} />
         <Route path="feemgmt/fee-summary"     element={<FeeSummary />} />
         <Route path="feemgmt/fee-transaction" element={<FeeTransaction />} />
+        <Route path="feemgmt/defaulter-report" element={<DefaulterReport />} />
 
         {/* ── Books ─────────────────────────────────────────────── */}
         <Route path="fees/books/sets"         element={<BookSets />} />
@@ -119,34 +153,34 @@ export default function App() {
         <Route path="transport/vehicles"               element={<VehicleList />} />
         <Route path="transport/routes"                 element={<RouteMasterPage />} />
         <Route path="transport/students"               element={<TransportStudents />} />
-        <Route path="transport/students/not-using"     element={<CS title="Students Not Using Transport" />} />
+        <Route path="transport/students/not-using"     element={<NotUsingTransport />} />
         <Route path="transport/setup/bus"              element={<BusMasterPage />} />
         <Route path="transport/setup/stop"             element={<StopMasterPage />} />
         <Route path="transport/setup/promote"          element={<CS title="Promote Route / Stop" />} />
         <Route path="transport/setup/vehicle-details"  element={<CS title="Vehicle Company / Model" />} />
         <Route path="transport/setup/parts"            element={<CS title="Vehicle Parts" />} />
-        <Route path="transport/listing/buswise"        element={<CS title="Bus-wise List" />} />
-        <Route path="transport/listing/routewise"      element={<CS title="Route-wise List" />} />
-        <Route path="transport/listing/stopwise"       element={<CS title="Stop-wise List" />} />
+        <Route path="transport/listing/buswise"        element={<BuswiseList />} />
+        <Route path="transport/listing/routewise"      element={<RoutewiseList />} />
+        <Route path="transport/listing/stopwise"       element={<StopwiseList />} />
         <Route path="transport/listing/bus-count"      element={<CS title="Bus-wise Student Count" />} />
-        <Route path="transport/attendance"             element={<CS title="Transport Attendance Register" />} />
+        <Route path="transport/attendance"             element={<TransportAttendance />} />
         <Route path="transport/apply"                  element={<CS title="Apply Transport" />} />
 
         {/* ── Students ──────────────────────────────────────────── */}
         <Route path="students/admissions"         element={<AdmissionList />} />
         <Route path="students/dynamic-report"     element={<CS title="Dynamic Student Report" />} />
-        <Route path="students/change-admission-no"element={<CS title="Change Admission No." />} />
+        <Route path="students/change-admission-no"element={<ChangeAdmissionNo />} />
         <Route path="students/cbse-form"          element={<CS title="CBSE Registration Form" />} />
-        <Route path="students/search"             element={<CS title="Search Student" />} />
+        <Route path="students/search"             element={<SearchStudent />} />
         <Route path="students/admit-card"         element={<CS title="Admit Card" />} />
         <Route path="students/id-card"            element={<CS title="ID Card" />} />
         <Route path="students/edit-master"        element={<CS title="Student Edit Master" />} />
         <Route path="students/change-section"     element={<CS title="Change Section" />} />
         <Route path="students/sibling"            element={<CS title="Create Sibling" />} />
-        <Route path="students/promote"            element={<CS title="Promote Student" />} />
-        <Route path="students/demote"             element={<CS title="Demote Student" />} />
-        <Route path="students/reports/strength"   element={<CS title="Class-wise Strength" />} />
-        <Route path="students/reports/list"       element={<CS title="Student List" />} />
+        <Route path="students/promote"            element={<PromoteStudent />} />
+        <Route path="students/demote"             element={<DemoteStudent />} />
+        <Route path="students/reports/strength"   element={<ClasswiseStrength />} />
+        <Route path="students/reports/list"       element={<StudentListReport />} />
         <Route path="students/reports/cancelled"  element={<CS title="Cancelled Admissions" />} />
         <Route path="students/reports/tc"         element={<CS title="TC Issued" />} />
         <Route path="students/reports/age"        element={<CS title="Age Calculator Report" />} />
@@ -166,9 +200,9 @@ export default function App() {
         <Route path="frontdesk/enquiry/followup"      element={<CS title="Enquiry Follow Up" />} />
         <Route path="frontdesk/enquiry/test-subjects" element={<CS title="Test Subjects" />} />
         <Route path="frontdesk/enquiry/remarks"       element={<CS title="Remark Master" />} />
-        <Route path="frontdesk/hrm/add"               element={<CS title="Add HRM" />} />
-        <Route path="frontdesk/hrm/list"              element={<CS title="List HRM" />} />
-        <Route path="frontdesk/hrm/letter"            element={<CS title="Add Letter" />} />
+        <Route path="frontdesk/hrm/add"               element={<AddHRM />} />
+        <Route path="frontdesk/hrm/list"              element={<ListHRM />} />
+        <Route path="frontdesk/hrm/letter"            element={<AddLetter />} />
 
         {/* ── Master ─────────────────────────────────────────────── */}
         <Route path="masters/classes"                 element={<ClassMaster />} />
@@ -178,6 +212,14 @@ export default function App() {
         <Route path="masters/routes"                  element={<RouteMasterPage />} />
         <Route path="masters/buses"                   element={<BusMasterPage />} />
         <Route path="masters/stops"                   element={<StopMasterPage />} />
+        <Route path="masters/houses"                  element={<HouseMaster />} />
+        <Route path="masters/blood-groups"            element={<BloodGroupMaster />} />
+        <Route path="masters/school-info"             element={<SchoolMaster />} />
+        <Route path="masters/categories"              element={<CategoryMaster />} />
+        <Route path="masters/religions"               element={<ReligionMaster />} />
+        <Route path="masters/castes"                  element={<CasteMaster />} />
+        <Route path="masters/attendance-status"       element={<AttendanceMaster />} />
+        <Route path="masters/certificates"            element={<CertificateMaster />} />
       </Route>
     </Routes>
   )

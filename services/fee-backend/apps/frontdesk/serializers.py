@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Visitor, ShortLeave, Feedback, AuthorisedPerson, HRMLetter
+from .models import Visitor, ShortLeave, Feedback, AuthorisedPerson, HRMLetter, HRMCandidate
 
 
 class VisitorSerializer(serializers.ModelSerializer):
@@ -34,3 +34,10 @@ class HRMLetterSerializer(serializers.ModelSerializer):
         model = HRMLetter
         fields = '__all__'
         read_only_fields = ['id', 'created_at']
+
+
+class HRMCandidateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = HRMCandidate
+        fields = '__all__'
+        read_only_fields = ['id', 'created_at', 'updated_at']

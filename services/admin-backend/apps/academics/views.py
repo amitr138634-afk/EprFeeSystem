@@ -1,16 +1,19 @@
 from django.db import models
+from django.db.utils import IntegrityError
 from rest_framework import generics, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework.exceptions import ValidationError as DRFValidationError
 from .models import (
-    ExamType, StudentSubject, Marks, RemarkMaster, SignatureMaster, GradeScale,
+    ExamType, StudentSubject, Marks, Remark, StudentRemark,
+    SignatureMaster, GradeScale,
     Grade, Test, SubjectAssignment, SubjectTestMark, CoScholasticSubject,
     CoScholasticAssignment,
 )
 from .serializers import (
     ExamTypeSerializer, StudentSubjectSerializer,
-    MarksSerializer, RemarkMasterSerializer, SignatureMasterSerializer, GradeScaleSerializer,
-    GradeSerializer, TestSerializer, CoScholasticSubjectSerializer,
+    MarksSerializer, RemarkSerializer, SignatureMasterSerializer, GradeScaleSerializer,
+    GradeSerializer, TestSerializer, CoScholasticSubjectSerializer, class_teacher_for,
 )
 from utils.permissions import IsSchoolStaff, IsSchoolAdmin
 from utils.session import SessionScopedMixin, current_session_year
@@ -222,11 +225,13 @@ class MarksFeedingGridView(APIView):
             return Response({'detail': 'class_id, section_id and test_id are required.'}, status=400)
         subject_ids = [int(x) for x in p.get('subject_ids', '').split(',') if x]
         co_ids = [int(x) for x in p.get('co_scholastic_ids', '').split(',') if x]
-        if not (subject_ids or co_ids):
+        # General Info has no subject columns — just students + the remark column.
+        is_general = p.get('type') == 'general_info'
+        if not (subject_ids or co_ids) and not is_general:
             return Response({'detail': 'Select at least one subject.'}, status=400)
         sy = current_session_year()
 
-        columns = self._columns(class_id, section_id, test_id, subject_ids, co_ids, sy)
+        columns = [] if is_general else self._columns(class_id, section_id, test_id, subject_ids, co_ids, sy)
 
         from apps.students.models import ClassMaster, ClassSectionMaster
         class_master = ClassMaster.objects.filter(id=class_id).first()
@@ -262,12 +267,20 @@ class MarksFeedingGridView(APIView):
                 'grade': m.grade or None,
             }
 
+        # Each student's currently-selected remark for this test (per-test scope).
+        remark_by_student = dict(
+            StudentRemark.objects
+            .filter(student_id__in=[s.id for s in students], test_id=test_id, session=sy)
+            .values_list('student_id', 'remark_id')
+        )
+
         rows = [{
             'student_id': s.id, 'admission_no': s.admission_no, 'student_name': s.student_name,
             'class_name': class_master.class_name if class_master else s.class_name,
             'section_name': section_name or s.section,
             'roll_no': s.roll_no,
             'marks': marks_by_student.get(s.id, {}),
+            'remark_id': remark_by_student.get(s.id),
         } for s in students]
 
         grades_direct = list(Grade.objects.filter(session=sy, grade_type='direct').order_by('display_order').values('id', 'grade_label'))
@@ -361,19 +374,135 @@ class MarksFeedingGridView(APIView):
                     marks_obtained=marks_obtained, grade=grade or '', entered_by=request.user.id,
                 )
 
+        # Per-student remark selection (one per student, per test). remark_id
+        # null clears the selection.
+        for sr in data.get('student_remarks', []):
+            student_id = sr.get('student_id')
+            if not student_id:
+                continue
+            remark_id = sr.get('remark_id') or None
+            StudentRemark.objects.update_or_create(
+                student_id=student_id, test_id=test_id, session=sy,
+                defaults={
+                    'remark_id': remark_id, 'class_ref_id': class_id, 'section_id': section_id,
+                    'entered_by': request.user.id,
+                },
+            )
+
         return Response({'detail': 'Saved.', 'warnings': warnings})
 
 
-class RemarkMasterListCreateView(generics.ListCreateAPIView):
-    serializer_class = RemarkMasterSerializer
+def _section_ids_csv(raw_ids):
+    """Normalize a list of section ids (from request.data) into the
+    comma-separated string stored on Remark.section_ids."""
+    return ','.join(str(int(s)) for s in (raw_ids or []))
+
+
+class RemarkListCreateView(generics.ListCreateAPIView):
+    """Remark Master — predefined remarks scoped to a class + sections."""
+    serializer_class = RemarkSerializer
     permission_classes = [IsSchoolAdmin]
-    queryset = RemarkMaster.objects.all()
+
+    def get_queryset(self):
+        sy = current_session_year()
+        qs = Remark.objects.filter(session=sy) if sy else Remark.objects.all()
+        class_id = self.request.query_params.get('class_id')
+        if class_id:
+            qs = qs.filter(class_ref_id=class_id)
+        return qs.select_related('class_ref').order_by('display_order', 'id')
+
+    def perform_create(self, serializer):
+        serializer.save(
+            session=current_session_year() or '',
+            section_ids=_section_ids_csv(self.request.data.get('section_ids')),
+        )
+
+
+class RemarkDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = RemarkSerializer
+    permission_classes = [IsSchoolAdmin]
+    queryset = Remark.objects.all()
+
+    def perform_update(self, serializer):
+        raw_ids = self.request.data.get('section_ids')
+        if raw_ids is not None:
+            serializer.save(section_ids=_section_ids_csv(raw_ids))
+        else:
+            serializer.save()
+
+
+class MarksFeedingRemarksView(APIView):
+    """Remark dropdown for Marks Feeding — only remarks for the selected
+    class whose section mapping includes the selected section."""
+    permission_classes = [IsSchoolStaff]
+
+    def get(self, request):
+        class_id = request.query_params.get('class_id')
+        section_id = request.query_params.get('section_id')
+        if not (class_id and section_id):
+            return Response({'detail': 'class_id and section_id are required.'}, status=400)
+        sy = current_session_year()
+        remarks = (
+            Remark.objects
+            .filter(class_ref_id=class_id, is_active=True, session=sy)
+            .order_by('display_order', 'id')
+        )
+        matched = [r for r in remarks if int(section_id) in r.section_id_list()]
+        return Response([{'id': r.id, 'text': r.text} for r in matched])
+
+
+def _save_signature_or_400(serializer, **extra):
+    """Principal/Examination IC/Class Teacher each have a uniqueness
+    constraint enforced at the DB level (see SignatureMaster.Meta) — convert
+    a violation into a clean validation error instead of a 500."""
+    try:
+        serializer.save(**extra)
+    except IntegrityError:
+        designation = serializer.validated_data.get('designation', '')
+        if designation == 'class_teacher':
+            msg = 'A signature for this class + section already exists this session. Edit that record instead.'
+        else:
+            msg = f'A {designation.replace("_", " ").title()} signature already exists this session. Edit that record instead.'
+        raise DRFValidationError({'detail': msg})
 
 
 class SignatureMasterListCreateView(generics.ListCreateAPIView):
+    """Signature Master — Principal/Examination IC (school-level singletons)
+    and Class Teacher (one per class+section), scoped to the active session."""
+    serializer_class = SignatureMasterSerializer
+    permission_classes = [IsSchoolAdmin]
+
+    def get_queryset(self):
+        sy = current_session_year()
+        qs = SignatureMaster.objects.filter(session=sy) if sy else SignatureMaster.objects.all()
+        return qs.select_related('class_ref', 'section').order_by('designation', 'id')
+
+    def perform_create(self, serializer):
+        _save_signature_or_400(serializer, session=current_session_year() or '')
+
+
+class SignatureMasterDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = SignatureMasterSerializer
     permission_classes = [IsSchoolAdmin]
     queryset = SignatureMaster.objects.all()
+
+    def perform_update(self, serializer):
+        _save_signature_or_400(serializer)
+
+
+class ClassTeacherLookupView(APIView):
+    """Used by the Signature Master form to show the auto-fetched Class
+    Teacher name as soon as class+section are picked, before any signature
+    record exists for that combination yet."""
+    permission_classes = [IsSchoolAdmin]
+
+    def get(self, request):
+        class_id = request.query_params.get('class_id')
+        section_id = request.query_params.get('section_id')
+        if not (class_id and section_id):
+            return Response({'detail': 'class_id and section_id are required.'}, status=400)
+        staff = class_teacher_for(class_id, section_id)
+        return Response({'person_name': staff.full_name if staff else None})
 
 
 class ExamTypeDetailView(SessionScopedMixin, generics.RetrieveUpdateDestroyAPIView):
@@ -387,12 +516,6 @@ class ExamTypeDetailView(SessionScopedMixin, generics.RetrieveUpdateDestroyAPIVi
 #     serializer_class = SubjectAllocationSerializer
 #     permission_classes = [IsSchoolAdmin]
 #     queryset = SubjectAllocation.objects.all()
-
-
-class RemarkMasterDetailView(generics.RetrieveUpdateDestroyAPIView):
-    serializer_class = RemarkMasterSerializer
-    permission_classes = [IsSchoolAdmin]
-    queryset = RemarkMaster.objects.all()
 
 
 class StudentSubjectView(SessionScopedMixin, generics.ListCreateAPIView):

@@ -8,6 +8,7 @@ const listOf = (r) => r.data.results || r.data
 const cellKey = (kind, id) => `${kind}_${id}`
 
 export default function EnterMarks() {
+  const [mode, setMode] = useState('view') // 'view' | 'edit' — page loads in View Mode by default
   const [classId, setClassId] = useState('')
   const [sectionId, setSectionId] = useState('')
   const [testId, setTestId] = useState('')
@@ -17,6 +18,7 @@ export default function EnterMarks() {
   const [grid, setGrid] = useState(null) // {columns, students, grades_direct}
   const [cells, setCells] = useState({}) // `${student_id}:${kind}_${id}` -> {marks_obtained, grade}
   const [cellStatus, setCellStatus] = useState({}) // same key -> 'saving' | 'saved' | 'error'
+  const [remarkCells, setRemarkCells] = useState({}) // student_id -> remark_id
 
   /* ── Dropdown chain ───────────────────────────────────────────────────── */
   const { data: classes = [] } = useQuery({
@@ -36,7 +38,13 @@ export default function EnterMarks() {
   const { data: subjectOptions = [] } = useQuery({
     queryKey: ['marksFeedingSubjects', classId, sectionId, testId, type],
     queryFn: () => academicsApi.marksFeedingSubjects({ class_id: classId, section_id: sectionId, test_id: testId, type }).then(r => r.data),
-    enabled: !!(classId && sectionId && testId && type),
+    enabled: !!(classId && sectionId && testId && (type === 'scholastic' || type === 'co_scholastic')),
+  })
+  // Remark dropdown options — only remarks mapped to this class + section.
+  const { data: remarkOptions = [] } = useQuery({
+    queryKey: ['marksFeedingRemarks', classId, sectionId],
+    queryFn: () => academicsApi.marksFeedingRemarks({ class_id: classId, section_id: sectionId }).then(r => r.data),
+    enabled: !!(classId && sectionId),
   })
 
   // Each dropdown resets everything below it.
@@ -57,24 +65,30 @@ export default function EnterMarks() {
     setGrid(null)
   }
 
-  const allSelected = classId && sectionId && testId && type && selectedSubjects.length > 0
+  // General Info needs no subject selection — class/section/test/type is enough.
+  const allSelected = classId && sectionId && testId && type &&
+    (type === 'general_info' || selectedSubjects.length > 0)
 
   /* ── Load grid ────────────────────────────────────────────────────────── */
   const loadGridMut = useMutation({
     mutationFn: () => {
       const subject_ids = selectedSubjects.filter(s => s.kind === 'subject').map(s => s.id).join(',')
       const co_scholastic_ids = selectedSubjects.filter(s => s.kind === 'co_scholastic').map(s => s.id).join(',')
-      return academicsApi.marksFeedingGrid({ class_id: classId, section_id: sectionId, test_id: testId, subject_ids, co_scholastic_ids }).then(r => r.data)
+      return academicsApi.marksFeedingGrid({ class_id: classId, section_id: sectionId, test_id: testId, subject_ids, co_scholastic_ids, type }).then(r => r.data)
     },
     onSuccess: (data) => {
       setGrid(data)
+      setMode('view') // every freshly loaded sheet opens in View Mode
       const initial = {}
+      const initialRemarks = {}
       data.students.forEach(s => {
         Object.entries(s.marks).forEach(([key, val]) => {
           initial[`${s.student_id}:${key}`] = val
         })
+        if (s.remark_id != null) initialRemarks[s.student_id] = s.remark_id
       })
       setCells(initial)
+      setRemarkCells(initialRemarks)
     },
     onError: (err) => toast.error(err.response?.data?.detail || 'Failed to load grid'),
   })
@@ -120,6 +134,21 @@ export default function EnterMarks() {
     saveCellMut.mutate({ studentId, kind, id, marksObtained: cell.marks_obtained, grade: cell.grade })
   }
 
+  /* ── Auto-save the per-student remark selection ───────────────────────── */
+  const saveRemarkMut = useMutation({
+    mutationFn: ({ studentId, remarkId }) =>
+      academicsApi.saveMarksFeedingGrid({
+        class_id: classId, section_id: sectionId, test_id: testId,
+        student_remarks: [{ student_id: studentId, remark_id: remarkId || null }],
+      }),
+    onMutate: ({ studentId }) => setCellStatus(prev => ({ ...prev, [`${studentId}:remark`]: 'saving' })),
+    onSuccess: (res, { studentId }) => setCellStatus(prev => ({ ...prev, [`${studentId}:remark`]: 'saved' })),
+    onError: (err, { studentId }) => {
+      setCellStatus(prev => ({ ...prev, [`${studentId}:remark`]: 'error' }))
+      toast.error(err.response?.data?.detail || 'Failed to save remark')
+    },
+  })
+
   return (
     <div className="space-y-4">
       <div>
@@ -157,11 +186,18 @@ export default function EnterMarks() {
               <option value="">Select Type</option>
               <option value="scholastic">Scholastic</option>
               <option value="co_scholastic">Co-Scholastic</option>
+              <option value="general_info">General Info</option>
             </select>
           </div>
         </div>
 
-        {type && (
+        {type === 'general_info' && (
+          <div className="mt-4 pt-4 border-t border-gray-100">
+            <p className="text-sm text-gray-400">General Info captures only the per-student remark — no subjects to select. Click Submit to load the sheet.</p>
+          </div>
+        )}
+
+        {(type === 'scholastic' || type === 'co_scholastic') && (
           <div className="mt-4 pt-4 border-t border-gray-100">
             <div className="flex items-center justify-between mb-2">
               <label className="form-label mb-0">Subjects</label>
@@ -215,9 +251,18 @@ export default function EnterMarks() {
 
       {grid && (
         <div className="card overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-            <span className="text-sm font-semibold text-gray-700">{grid.students.length} Students</span>
-            <span className="text-xs text-gray-400">Marks save automatically as you fill each cell</span>
+          <div className="flex items-center justify-end gap-3 px-5 py-4 border-b border-gray-100">
+            <span className="text-xs text-gray-400">
+              {mode === 'view' ? 'Viewing read-only — switch to Edit Mode to make changes' : 'Marks save automatically as you fill each cell'}
+            </span>
+            <select
+              value={mode}
+              onChange={e => setMode(e.target.value)}
+              className="form-input py-1 text-xs w-32"
+            >
+              <option value="view">View Mode</option>
+              <option value="edit">Edit Mode</option>
+            </select>
           </div>
 
           {grid.students.length === 0 ? (
@@ -230,8 +275,9 @@ export default function EnterMarks() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-200">
-                    <th className="sticky left-0 z-20 bg-gray-50 px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">Admission No</th>
-                    <th className="sticky left-[120px] z-20 bg-gray-50 px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">Student Name</th>
+                    <th className="sticky left-0 z-20 bg-gray-50 px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">Sr No</th>
+                    <th className="sticky left-[50px] z-20 bg-gray-50 px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">Admission No</th>
+                    <th className="sticky left-[170px] z-20 bg-gray-50 px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">Student Name</th>
                     <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">Class</th>
                     <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">Section</th>
                     <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">Roll No</th>
@@ -241,13 +287,17 @@ export default function EnterMarks() {
                         {col.max_marks != null && <span className="block text-gray-400 font-normal">/ {col.max_marks}</span>}
                       </th>
                     ))}
+                    {type === 'general_info' && (
+                      <th className="px-3 py-2.5 text-center text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">Remark</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
-                  {grid.students.map(s => (
+                  {grid.students.map((s, idx) => (
                     <tr key={s.student_id} className="border-b border-gray-100 hover:bg-gray-50">
-                      <td className="sticky left-0 z-10 bg-white px-3 py-2 font-mono text-gray-700 whitespace-nowrap">{s.admission_no}</td>
-                      <td className="sticky left-[120px] z-10 bg-white px-3 py-2 font-medium text-gray-900 whitespace-nowrap">{s.student_name}</td>
+                      <td className="sticky left-0 z-10 bg-white px-3 py-2 text-gray-500">{idx + 1}</td>
+                      <td className="sticky left-[50px] z-10 bg-white px-3 py-2 font-mono text-gray-700 whitespace-nowrap">{s.admission_no}</td>
+                      <td className="sticky left-[170px] z-10 bg-white px-3 py-2 font-medium text-gray-900 whitespace-nowrap">{s.student_name}</td>
                       <td className="px-3 py-2 text-gray-600">{s.class_name}</td>
                       <td className="px-3 py-2 text-gray-600">{s.section_name}</td>
                       <td className="px-3 py-2 text-gray-600">{s.roll_no || '—'}</td>
@@ -256,39 +306,76 @@ export default function EnterMarks() {
                         const cell = cells[k] || {}
                         return (
                           <td key={`${col.kind}-${col.id}`} className="px-3 py-2 text-center">
-                            <div className="relative inline-block">
-                              {col.evaluation_mode === 'direct' ? (
-                                <select
-                                  className="form-input py-1 text-xs w-20 mx-auto"
-                                  value={cell.grade || ''}
-                                  onChange={e => {
-                                    setCell(s.student_id, col.kind, col.id, 'grade', e.target.value)
-                                    saveCellMut.mutate({ studentId: s.student_id, kind: col.kind, id: col.id, marksObtained: cell.marks_obtained, grade: e.target.value })
-                                  }}
-                                >
-                                  <option value="">—</option>
-                                  {grid.grades_direct.map(g => <option key={g.id} value={g.grade_label}>{g.grade_label}</option>)}
-                                </select>
-                              ) : (
-                                <input
-                                  type="number"
-                                  min="0"
-                                  max={col.max_marks ?? undefined}
-                                  step="0.01"
-                                  className="form-input py-1 text-xs w-20 text-center mx-auto"
-                                  value={cell.marks_obtained ?? ''}
-                                  onChange={e => setCell(s.student_id, col.kind, col.id, 'marks_obtained', e.target.value === '' ? '' : Number(e.target.value))}
-                                  onBlur={() => saveCell(s.student_id, col.kind, col.id)}
-                                  placeholder="—"
-                                />
-                              )}
-                              {cellStatus[k] === 'saving' && <Loader2 size={11} className="absolute -right-3 top-1/2 -translate-y-1/2 animate-spin text-gray-400" />}
-                              {cellStatus[k] === 'saved' && <Check size={11} className="absolute -right-3 top-1/2 -translate-y-1/2 text-green-500" />}
-                              {cellStatus[k] === 'error' && <XIcon size={11} className="absolute -right-3 top-1/2 -translate-y-1/2 text-red-500" />}
-                            </div>
+                            {mode === 'view' ? (
+                              <span className="text-gray-700">
+                                {col.evaluation_mode === 'direct' ? (cell.grade || '—') : (cell.marks_obtained ?? '—')}
+                              </span>
+                            ) : (
+                              <div className="relative inline-block">
+                                {col.evaluation_mode === 'direct' ? (
+                                  <select
+                                    className="form-input py-1 text-xs w-20 mx-auto"
+                                    value={cell.grade || ''}
+                                    onChange={e => {
+                                      setCell(s.student_id, col.kind, col.id, 'grade', e.target.value)
+                                      saveCellMut.mutate({ studentId: s.student_id, kind: col.kind, id: col.id, marksObtained: cell.marks_obtained, grade: e.target.value })
+                                    }}
+                                  >
+                                    <option value="">—</option>
+                                    {grid.grades_direct.map(g => <option key={g.id} value={g.grade_label}>{g.grade_label}</option>)}
+                                  </select>
+                                ) : (
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max={col.max_marks ?? undefined}
+                                    step="0.01"
+                                    className="form-input py-1 text-xs w-20 text-center mx-auto"
+                                    value={cell.marks_obtained ?? ''}
+                                    onChange={e => setCell(s.student_id, col.kind, col.id, 'marks_obtained', e.target.value === '' ? '' : Number(e.target.value))}
+                                    onBlur={() => saveCell(s.student_id, col.kind, col.id)}
+                                    placeholder="—"
+                                  />
+                                )}
+                                {cellStatus[k] === 'saving' && <Loader2 size={11} className="absolute -right-3 top-1/2 -translate-y-1/2 animate-spin text-gray-400" />}
+                                {cellStatus[k] === 'saved' && <Check size={11} className="absolute -right-3 top-1/2 -translate-y-1/2 text-green-500" />}
+                                {cellStatus[k] === 'error' && <XIcon size={11} className="absolute -right-3 top-1/2 -translate-y-1/2 text-red-500" />}
+                              </div>
+                            )}
                           </td>
                         )
                       })}
+                      {/* Remark dropdown — General Info only; saved per student, per test */}
+                      {type === 'general_info' && (
+                        <td className="px-3 py-2 text-center">
+                          {mode === 'view' ? (
+                            <span className="text-gray-700">
+                              {remarkOptions.find(r => r.id === remarkCells[s.student_id])?.text || '—'}
+                            </span>
+                          ) : (() => {
+                            const rk = `${s.student_id}:remark`
+                            return (
+                              <div className="relative inline-block">
+                                <select
+                                  className="form-input py-1 text-xs w-44"
+                                  value={remarkCells[s.student_id] ?? ''}
+                                  onChange={e => {
+                                    const remarkId = e.target.value ? Number(e.target.value) : ''
+                                    setRemarkCells(prev => ({ ...prev, [s.student_id]: remarkId }))
+                                    saveRemarkMut.mutate({ studentId: s.student_id, remarkId })
+                                  }}
+                                >
+                                  <option value="">—</option>
+                                  {remarkOptions.map(r => <option key={r.id} value={r.id}>{r.text}</option>)}
+                                </select>
+                                {cellStatus[rk] === 'saving' && <Loader2 size={11} className="absolute -right-3 top-1/2 -translate-y-1/2 animate-spin text-gray-400" />}
+                                {cellStatus[rk] === 'saved' && <Check size={11} className="absolute -right-3 top-1/2 -translate-y-1/2 text-green-500" />}
+                                {cellStatus[rk] === 'error' && <XIcon size={11} className="absolute -right-3 top-1/2 -translate-y-1/2 text-red-500" />}
+                              </div>
+                            )
+                          })()}
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>

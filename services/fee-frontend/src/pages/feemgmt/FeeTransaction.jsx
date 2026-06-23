@@ -12,11 +12,12 @@ export default function FeeTransaction() {
   const [fromDate, setFromDate] = useState(firstOfMonth())
   const [toDate, setToDate] = useState(today())
   const [mode, setMode] = useState('')
+  const [type, setType] = useState('')
   const [search, setSearch] = useState('')
 
   const params = {
     session: activeSession, from_date: fromDate, to_date: toDate,
-    ...(mode && { mode }), ...(search && { search }),
+    ...(mode && { mode }), ...(type && { type }), ...(search && { search }),
   }
 
   const { data: rows = [], isLoading } = useQuery({
@@ -29,12 +30,12 @@ export default function FeeTransaction() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-800">Fee Transaction</h1>
-        <p className="text-sm text-gray-500 mt-1">Daily fee transactions — student, amount, heads, mode of payment</p>
+        <h1 className="text-2xl font-bold text-gray-800">Daily Transaction Report</h1>
+        <p className="text-sm text-gray-500 mt-1">All fee transactions between a date range — filter by payment mode and fee type</p>
       </div>
 
       <div className="card p-5">
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
           <div><label className="form-label">From Date</label><input type="date" className="form-input" value={fromDate} onChange={e => setFromDate(e.target.value)} /></div>
           <div><label className="form-label">To Date</label><input type="date" className="form-input" value={toDate} onChange={e => setToDate(e.target.value)} /></div>
           <div>
@@ -47,6 +48,14 @@ export default function FeeTransaction() {
               <option value="online">Online</option>
               <option value="cheque">Cheque</option>
               <option value="card">Card</option>
+            </select>
+          </div>
+          <div>
+            <label className="form-label">Type</label>
+            <select className="form-select" value={type} onChange={e => setType(e.target.value)}>
+              <option value="">All Types</option>
+              <option value="REGULAR">Fee</option>
+              <option value="EXTRA">Extra Fee</option>
             </select>
           </div>
           <div>
@@ -69,21 +78,22 @@ export default function FeeTransaction() {
         <table className="data-table">
           <thead>
             <tr>
-              <th>Receipt No</th><th>Date</th><th>Student</th><th>Admission No</th>
+              <th>Receipt No</th><th>Date</th><th>Type</th><th>Student</th><th>Admission No</th>
               <th>Class</th><th>Fee Heads</th><th className="text-right">Amount</th><th>Mode</th><th>Remarks</th>
             </tr>
           </thead>
           <tbody>
-            {isLoading && <tr><td colSpan={9} className="text-center py-8 text-gray-400">Loading...</td></tr>}
-            {!isLoading && rows.length === 0 && <tr><td colSpan={9} className="text-center py-8 text-gray-400">No transactions found</td></tr>}
+            {isLoading && <tr><td colSpan={10} className="text-center py-8 text-gray-400">Loading...</td></tr>}
+            {!isLoading && rows.length === 0 && <tr><td colSpan={10} className="text-center py-8 text-gray-400">No transactions found</td></tr>}
             {rows.map(r => (
               <tr key={r.id}>
                 <td className="font-medium text-gray-900">{r.rec_no}</td>
                 <td>{new Date(r.date).toLocaleDateString('en-IN')}</td>
+                <td><span className={r.type === 'EXTRA' ? 'badge-yellow' : 'badge-green'}>{r.type === 'EXTRA' ? 'Extra Fee' : 'Fee'}</span></td>
                 <td>{r.student_name}</td>
-                <td>{r.admission_no}</td>
+                <td>{r.admission_no || '—'}</td>
                 <td>{r.class_name}{r.section ? `-${r.section}` : ''}</td>
-                <td className="text-xs text-gray-500">{r.heads.length} head(s)</td>
+                <td className="text-xs text-gray-500">{r.heads.length > 0 ? `${r.heads.length} head(s)` : '—'}</td>
                 <td className="text-right font-semibold text-green-600">₹{r.amount.toLocaleString('en-IN')}</td>
                 <td><span className="badge-gray uppercase">{r.mode}</span></td>
                 <td className="text-gray-500 text-xs max-w-xs truncate">{r.remarks || '—'}</td>
